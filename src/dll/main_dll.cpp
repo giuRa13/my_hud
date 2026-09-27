@@ -107,6 +107,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* p_SwapChain, UINT SyncInterval, UINT
     // draw
     if (config.show_pedals)  widgets::pedals_widget(config);
     if (config.show_delta)  widgets::delta_widget(config);
+    if (config.show_gear)  widgets::gear_widget(config);
 
     // render ImGui drawing data onto LMU's backbuffer
     ImGui::Render();

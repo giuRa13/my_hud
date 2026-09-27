@@ -21,6 +21,7 @@ namespace config
 
         bool show_pedals = true;
         bool show_delta = false;
+        bool show_gear = true;
 
         // pedals settings
         bool pedals_horizontal = false; // false = vertical (default), true = horizontal
@@ -32,20 +33,25 @@ namespace config
         float brake_color[4]    = { 0.898f, 0.133f, 0.286f, 1.0f }; // Default Red
         float clutch_color[4]   = { 0.266f, 0.462f, 0.682f, 1.0f };; // Default Blue
         float ffb_color[4]      = { 0.925f, 0.643f, 0.047f, 1.0f }; // Default Orange/Yellow
+        
+        // gear settings
+        float gear_bg_redline_color[4]  = { 1.0f,  0.118f, 0.267f, 1.0f }; // #FF1E44 (0.91 threshold)
+        float gear_bg_optimal_color[4]  = { 0.0f,  0.667f, 1.0f,   1.0f }; // #00AAFF (0.95 threshold)
+        float gear_bg_overrev_color[4]  = { 1.0f,  0.0f,   1.0f,   1.0f }; // #FF00FF (0.98 threshold)
     };
 
-    // Gets the directory where the EXE or DLL is running
+    // gets the directory where the EXE or DLL is running
     inline std::string get_module_dir(HMODULE hModule = NULL) 
     {
         char path[MAX_PATH];
-        // If hModule is NULL, GetModuleFileNameA gets the path of the running EXE.
-        // If hModule is valid, it gets the exact path of the DLL.
+        // if hModule is NULL, GetModuleFileNameA gets the path of the running EXE.
+        // if hModule is valid, it gets the exact path of the DLL.
         GetModuleFileNameA(hModule, path, MAX_PATH);
         std::string dir(path);
         return dir.substr(0, dir.find_last_of("\\/"));
     }
 
-    // Configuration writer: Forces absolute path next to the calling module
+    // writer: forces absolute path next to the calling module
     inline void save_config(const AppConfig& config, const std::string& filename = "config.json", HMODULE hModule = NULL) 
     {
         std::string full_path = get_module_dir(hModule) + "\\" + filename;
@@ -63,6 +69,7 @@ namespace config
             //
             file << "show_pedals=" << (config.show_pedals ? 1 : 0) << "\n";
             file << "show_delta=" << (config.show_delta ? 1 : 0) << "\n";
+            file << "show_gear=" << (config.show_gear ? 1 : 0) << "\n";
             //
             file << "pedals_horizontal=" << (config.pedals_horizontal ? 1 : 0) << "\n";
             file << "show_throttle=" << (config.show_throttle ? 1 : 0) << "\n";
@@ -85,11 +92,25 @@ namespace config
             file << "ffb_g=" << config.ffb_color[1] << "\n";
             file << "ffb_b=" << config.ffb_color[2] << "\n";
             file << "ffb_a=" << config.ffb_color[3] << "\n";
+            //
+            file << "gear_bg_redline_r=" << config.gear_bg_redline_color[0] << "\n";
+            file << "gear_bg_redline_g=" << config.gear_bg_redline_color[1] << "\n";
+            file << "gear_bg_redline_b=" << config.gear_bg_redline_color[2] << "\n";
+            file << "gear_bg_redline_a=" << config.gear_bg_redline_color[3] << "\n";
+            file << "gear_bg_optimal_r=" << config.gear_bg_optimal_color[0] << "\n";
+            file << "gear_bg_optimal_g=" << config.gear_bg_optimal_color[1] << "\n";
+            file << "gear_bg_optimal_b=" << config.gear_bg_optimal_color[2] << "\n";
+            file << "gear_bg_optimal_a=" << config.gear_bg_optimal_color[3] << "\n";
+            file << "gear_bg_overrev_r=" << config.gear_bg_overrev_color[0] << "\n";
+            file << "gear_bg_overrev_g=" << config.gear_bg_overrev_color[1] << "\n";
+            file << "gear_bg_overrev_b=" << config.gear_bg_overrev_color[2] << "\n";
+            file << "gear_bg_overrev_a=" << config.gear_bg_overrev_color[3] << "\n";
+
             file.close();
         }
     }
 
-    // Configuration reader: Forces absolute path next to the calling module
+    // reader: forces absolute path next to the calling module
     inline AppConfig load_config(const std::string& filename = "config.json", HMODULE hModule = NULL) 
     {
         AppConfig config;
@@ -117,6 +138,7 @@ namespace config
                     
                     else if (key == "show_pedals") config.show_pedals = (std::stoi(val_str) != 0);
                     else if (key == "show_delta") config.show_delta = (std::stoi(val_str) != 0);
+                    else if (key == "show_gear") config.show_gear = (std::stoi(val_str) != 0);
                 
                     else if (key == "pedals_horizontal") config.pedals_horizontal = (std::stoi(val_str) != 0);
                     else if (key == "show_throttle") config.show_throttle = (std::stoi(val_str) != 0);
@@ -139,6 +161,19 @@ namespace config
                     else if (key == "ffb_g") config.ffb_color[1] = std::stof(val_str);
                     else if (key == "ffb_b") config.ffb_color[2] = std::stof(val_str);
                     else if (key == "ffb_a") config.ffb_color[3] = std::stof(val_str);
+
+                    else if (key == "gear_bg_redline_r") config.gear_bg_redline_color[0] = std::stof(val_str);
+                    else if (key == "gear_bg_redline_g") config.gear_bg_redline_color[1] = std::stof(val_str);
+                    else if (key == "gear_bg_redline_b") config.gear_bg_redline_color[2] = std::stof(val_str);
+                    else if (key == "gear_bg_redline_a") config.gear_bg_redline_color[3] = std::stof(val_str);
+                    else if (key == "gear_bg_optimal_r") config.gear_bg_optimal_color[0] = std::stof(val_str);
+                    else if (key == "gear_bg_optimal_g") config.gear_bg_optimal_color[1] = std::stof(val_str);
+                    else if (key == "gear_bg_optimal_b") config.gear_bg_optimal_color[2] = std::stof(val_str);
+                    else if (key == "gear_bg_optimal_a") config.gear_bg_optimal_color[3] = std::stof(val_str);
+                    else if (key == "gear_bg_overrev_r") config.gear_bg_overrev_color[0] = std::stof(val_str);
+                    else if (key == "gear_bg_overrev_g") config.gear_bg_overrev_color[1] = std::stof(val_str);
+                    else if (key == "gear_bg_overrev_b") config.gear_bg_overrev_color[2] = std::stof(val_str);
+                    else if (key == "gear_bg_overrev_a") config.gear_bg_overrev_color[3] = std::stof(val_str);
                 }
             }
         }

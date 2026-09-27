@@ -107,7 +107,10 @@ void Gui_Layer::draw_widgets()
         if (ImGui::Checkbox("Enable V-Sync",  &config.enable_vsync)) 
             vsync_changed = true; // Signal App that need to reset the D3D device
 
-        if (ImGui::SliderFloat("Background Alpha", &config.opacity, 0.0f, 1.0f)) 
+        if (ImGui::SliderFloat("Background Alpha", &config.opacity, 0.0f, 1.0f))
+        {
+            // optional extra colors setting
+        } 
         
         if (ImGui::ColorEdit4("Accent Color", &accent_color.x)) 
         {
@@ -144,14 +147,18 @@ void Gui_Layer::draw_widgets()
         if (ImGui::Button("Config##Delta")) 
             show_delta_settings = !show_delta_settings;
 
+        // gear //////////////////////////////////////////////////////////
+        ImGui::Checkbox("Gear", &config.show_gear); 
+        ImGui::SameLine();
+        if (ImGui::Button("Config##Gear")) 
+            show_gear_settings = !show_gear_settings;
+
         ImGui::Separator();
         ImGui::Spacing();
 
         // save/apply //////////////////////////////////////////////////////////
         if (ImGui::Button("Save Settings & Apply to Game")) 
-        {
             config::save_config(config, "config.json", NULL);
-        }
 
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 
@@ -185,11 +192,13 @@ void Gui_Layer::draw_widgets()
     {
         if (config.show_pedals) widgets::pedals_widget(config);
         if (config.show_delta) widgets::delta_widget(config);
+        if (config.show_gear) widgets::gear_widget(config);
     }
 
     // settings //////////////////////////////////////////////////////////
     if (show_pedals_settings) widgets::pedals_settings_panel(&show_pedals_settings, config);
     if (show_delta_settings) widgets::delta_settings_panel(&show_delta_settings, config);
+    if (show_gear_settings) widgets::gear_settings_panel(&show_gear_settings, config);
     
 }
 

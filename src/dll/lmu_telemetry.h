@@ -3,6 +3,8 @@
 #define LMU_TELEMETRY_H
 
 #include <windows.h>
+#include <cmath>
+#include <algorithm>
 
 // rFactor 2 and LMU expect structures to be packed on 4-byte boundaries (#pragma pack( push, 4 ))
 #pragma pack( push, 4 )
@@ -41,14 +43,66 @@ struct TelemInfoV01 {
     double mUnfilteredBrake;       // ranges  0.0-1.0
     double mUnfilteredSteering;    
     double mUnfilteredClutch;      
-
     double mFilteredThrottle;      
     double mFilteredBrake;         
     double mFilteredSteering;      
     double mFilteredClutch;        
+
+    // Misc
+    double mSteeringShaftTorque;   
+    double mFront3rdDeflection;    
+    double mRear3rdDeflection;  
     
-    // ... don't need to read past here for basic pedals/gear, 
-    // but the struct size must match or map safely up to this point
+    // Aerodynamics
+    double mFrontWingHeight;       
+    double mFrontRideHeight;       
+    double mRearRideHeight;        
+    double mDrag;                  
+    double mFrontDownforce;        
+    double mRearDownforce;       
+
+    // State/damage info
+    double mFuel;                  // amount of fuel (liters)
+    double mEngineMaxRPM;          // <--- EXACT POSITION FOR REV LIMIT
+    unsigned char mScheduledStops; 
+    bool  mOverheating;            
+    bool  mDetached;               
+    bool  mHeadlights;             
+    unsigned char mDentSeverity[8];
+    double mLastImpactET;          
+    double mLastImpactMagnitude;   
+    TelemVect3 mLastImpactPos;  
+
+    // Expanded fields
+    double mEngineTorque;          
+    long mCurrentSector;           
+    unsigned char mSpeedLimiter;   
+    unsigned char mMaxGears;       
+    unsigned char mFrontTireCompoundIndex;   
+    unsigned char mRearTireCompoundIndex;    
+    double mFuelCapacity;          
+    unsigned char mFrontFlapActivated;       
+    unsigned char mRearFlapActivated;        
+    unsigned char mRearFlapLegalStatus;      
+    unsigned char mIgnitionStarter;
+
+    char mFrontTireCompoundName[18];         
+    char mRearTireCompoundName[18]; 
+
+    unsigned char mSpeedLimiterAvailable;    
+    unsigned char mAntiStallActivated;       
+    unsigned char mUnused[2];                
+    float mVisualSteeringWheelRange;  
+
+    double mRearBrakeBias;                   
+    double mTurboBoostPressure;              
+    float mPhysicsToGraphicsOffset[3];       
+    float mPhysicalSteeringWheelRange;  
+
+    // deltabest
+    double mDeltaBest;
+     
+    double mBatteryChargeFraction; // <--- EXACT POSITION FOR HYBRID BATTERY [0.0-1.0]
 };
 
 #pragma pack( pop )
@@ -82,10 +136,35 @@ public:
     int   get_gear()     { return p_Telemetry ? (int)p_Telemetry->mGear : 0; }
     float get_RPM()      { return p_Telemetry ? (float)p_Telemetry->mEngineRPM : 0.0f; }
 
+    // calculates speed in km/h from local velocity vector (mLocalVel.z is forward/backward in rF2 vehicle coords)
+    float get_speed_kmh()
+    {
+        if (!p_Telemetry) return 0.0f;
+
+        // Magnitude of velocity vector: sqrt(x^2 + y^2 + z^2) meters per second
+        double vx = p_Telemetry->mLocalVel.x;
+        double vy = p_Telemetry->mLocalVel.y;
+        double vz = p_Telemetry->mLocalVel.z;
+        double speed_ms = std::sqrt(vx * vx + vy * vy + vz * vz);
+        return (float)(speed_ms * 3.6); // Convert m/s to km/h
+    }
+
     void shutdown() 
     {
         if (p_Telemetry) { UnmapViewOfFile(p_Telemetry); p_Telemetry = nullptr; }
         if (h_MapFile) CloseHandle(h_MapFile);
+    }
+
+    float get_battery_pct() 
+    {
+        // mBatteryChargeFraction is natively [0.0 - 1.0]
+        return p_Telemetry ? (float)p_Telemetry->mBatteryChargeFraction : 1.0f; 
+    }
+
+    float get_max_rpm() 
+    {
+        // mEngineMaxRPM gives the correct rev limit for the current car model
+        return (p_Telemetry && p_Telemetry->mEngineMaxRPM > 0.0) ? (float)p_Telemetry->mEngineMaxRPM : 8500.0f; 
     }
 
 private:
