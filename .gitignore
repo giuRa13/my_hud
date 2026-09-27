@@ -1,0 +1,37 @@
+# Build directories
+/build/
+/bin/
+/lib/
+
+# IDE specific files (Visual Studio, VS Code, CLion)
+.vs/
+.vscode/
+cmake-build-*/
+*.suo
+*.user
+*.filters
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+
+# Compiled Object files
+*.obj
+*.o
+*.exe
+*.dll
+*.lib
+*.a
+*.exp
+*.pdb
+
+# Local settings / configuration files 
+config.json
+imgui.ini
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store

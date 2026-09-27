@@ -1,0 +1,18 @@
+cmake_minimum_required(VERSION 3.1)
+project(imgui LANGUAGES CXX)
+
+# Define ImGui as a STATIC library.
+# It will be linked into EXE and your DLL.
+# This prevents ODR (One Definition Rule) issues.
+add_library(imgui STATIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_demo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_draw.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_tables.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_widgets.cpp
+    # removed backends here, we handle them in main CMake
+)
+
+target_include_directories(imgui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/imgui")
+
+target_compile_definitions(imgui PUBLIC "IMGUI_IMPL_API=__declspec(dllexport)")
