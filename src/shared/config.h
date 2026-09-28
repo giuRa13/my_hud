@@ -38,6 +38,12 @@ namespace config
         float gear_bg_redline_color[4]  = { 1.0f,  0.118f, 0.267f, 1.0f }; // #FF1E44 (0.91 threshold)
         float gear_bg_optimal_color[4]  = { 0.0f,  0.667f, 1.0f,   1.0f }; // #00AAFF (0.95 threshold)
         float gear_bg_overrev_color[4]  = { 1.0f,  0.0f,   1.0f,   1.0f }; // #FF00FF (0.98 threshold)
+
+        // delta settings
+        bool delta_use_all_time_best = true; // true = All Time Best (default), false = Last Lap
+        float delta_font_scale = 1.0f;
+        float delta_negative_color[4] = { 0.02f, 0.9f, 0.0f, 1.0f }; // Default Green
+        float delta_positive_color[4]    = { 0.898f, 0.133f, 0.286f, 1.0f }; // Default Red
     };
 
     // gets the directory where the EXE or DLL is running
@@ -105,6 +111,17 @@ namespace config
             file << "gear_bg_overrev_g=" << config.gear_bg_overrev_color[1] << "\n";
             file << "gear_bg_overrev_b=" << config.gear_bg_overrev_color[2] << "\n";
             file << "gear_bg_overrev_a=" << config.gear_bg_overrev_color[3] << "\n";
+            //
+            file << "delta_use_all_time_best=" << (config.delta_use_all_time_best ? 1 : 0) << "\n";
+            file << "delta_font_scale=" << config.delta_font_scale << "\n";
+            file << "delta_negative_r=" << config.delta_negative_color[0] << "\n";
+            file << "delta_negative_g=" << config.delta_negative_color[1] << "\n";
+            file << "delta_negative_b=" << config.delta_negative_color[2] << "\n";
+            file << "delta_negative_a=" << config.delta_negative_color[3] << "\n";
+            file << "delta_positive_r=" << config.delta_positive_color[0] << "\n";
+            file << "delta_positive_g=" << config.delta_positive_color[1] << "\n";
+            file << "delta_positive_b=" << config.delta_positive_color[2] << "\n";
+            file << "delta_posituve_a=" << config.delta_positive_color[3] << "\n";
 
             file.close();
         }
@@ -174,6 +191,17 @@ namespace config
                     else if (key == "gear_bg_overrev_g") config.gear_bg_overrev_color[1] = std::stof(val_str);
                     else if (key == "gear_bg_overrev_b") config.gear_bg_overrev_color[2] = std::stof(val_str);
                     else if (key == "gear_bg_overrev_a") config.gear_bg_overrev_color[3] = std::stof(val_str);
+
+                    else if (key == "delta_use_all_time_best") config.delta_use_all_time_best = (std::stoi(val_str) != 0);
+                    else if (key == "delta_font_scale") config.delta_font_scale = std::stof(val_str);
+                    else if (key == "delta_negative_r") config.delta_negative_color[0] = std::stof(val_str);
+                    else if (key == "delta_negative_g") config.delta_negative_color[1] = std::stof(val_str);
+                    else if (key == "delta_negative_b") config.delta_negative_color[2] = std::stof(val_str);
+                    else if (key == "delta_negative_a") config.delta_negative_color[3] = std::stof(val_str);
+                    else if (key == "delta_positive_r") config.delta_positive_color[0] = std::stof(val_str);
+                    else if (key == "delta_positive_g") config.delta_positive_color[1] = std::stof(val_str);
+                    else if (key == "delta_positive_b") config.delta_positive_color[2] = std::stof(val_str);
+                    else if (key == "delta_positive_a") config.delta_positive_color[3] = std::stof(val_str);
                 }
             }
         }

@@ -85,6 +85,10 @@ void Gui_Layer::end()
 
 void Gui_Layer::shutdown()
 {
+    // tell the DLL (which lives inside LMU) to stop drawing
+    config.enable_overlay = false;
+    config::save_config(config, "config.json", NULL);
+    
     ImGui_ImplDX9_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();

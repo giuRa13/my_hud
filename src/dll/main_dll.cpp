@@ -89,15 +89,15 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* p_SwapChain, UINT SyncInterval, UINT
         }
     }
 
-    // if global overlay is turned off, skip rendering entirely 
+    // overlay off: release the shared memory handles and skip rendering
     if (!config.enable_overlay) 
+    {
+        LMUTelemetry::get().shutdown(); // cheap, only null checks when already closed
         return o_Present(p_SwapChain, SyncInterval, Flags);
+    }
 
     // pull telemetry data from LMU memory map 
     LMUTelemetry::get().update();
-    float throttle = LMUTelemetry::get().get_throttle();
-    float brake = LMUTelemetry::get().get_brake();
-    int gear = LMUTelemetry::get().get_gear();
 
     // start ImGui Frame
     ImGui_ImplDX11_NewFrame();
@@ -223,6 +223,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         break;
     case DLL_PROCESS_DETACH:
         //Clean detachment left completely to Windows process termination. Zero risk of crashes.
+        // is common for D3D injection overlays to avoid crashing the game on exit, 
+        // Windows automatically cleans up open file mapping handles and unmaps views of files when the DLL unloads or the game closes
+        //LMUTelemetry::get().shutdown(); //RISKY
         break;
     }
     return TRUE;

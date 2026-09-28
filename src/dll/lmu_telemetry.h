@@ -1,113 +1,17 @@
-// handles the connection to LMU's memory-mapped files ($rF2Physics$) to pull live values
 #ifndef LMU_TELEMETRY_H
 #define LMU_TELEMETRY_H
 
 #include <windows.h>
+#include <cstdint>
+#include <cstring>
+#include <utility>
 #include <cmath>
 #include <algorithm>
+#include <optional>
+#include <shared/SharedmemoryInterface/InternalsPlugin.hpp>
+#include <shared/SharedmemoryInterface/SharedMemoryInterface.hpp>   
 
-// rFactor 2 and LMU expect structures to be packed on 4-byte boundaries (#pragma pack( push, 4 ))
-#pragma pack( push, 4 )
-
-// simplified structure layout matching rF2PhysicsV01 for essential pedals
-struct TelemVect3 {
-    double x, y, z;
-};
-
-// exact official mapping matching TelemInfoV01 from InternalPlugin.hpp
-struct TelemInfoV01 {
-    long mID;                      
-    double mDeltaTime;             
-    double mElapsedTime;           
-    long mLapNumber;               
-    double mLapStartET;            
-    char mVehicleName[64];         
-    char mTrackName[64];           
-
-    TelemVect3 mPos;               
-    TelemVect3 mLocalVel;          
-    TelemVect3 mLocalAccel;        
-
-    TelemVect3 mOri[3];            
-    TelemVect3 mLocalRot;          
-    TelemVect3 mLocalRotAccel;     
-
-    long mGear;                    // -1=reverse, 0=neutral, 1+=forward gears
-    double mEngineRPM;             
-    double mEngineWaterTemp;       
-    double mEngineOilTemp;         
-    double mClutchRPM;             
-
-    // Driver input
-    double mUnfilteredThrottle;    // ranges  0.0-1.0
-    double mUnfilteredBrake;       // ranges  0.0-1.0
-    double mUnfilteredSteering;    
-    double mUnfilteredClutch;      
-    double mFilteredThrottle;      
-    double mFilteredBrake;         
-    double mFilteredSteering;      
-    double mFilteredClutch;        
-
-    // Misc
-    double mSteeringShaftTorque;   
-    double mFront3rdDeflection;    
-    double mRear3rdDeflection;  
-    
-    // Aerodynamics
-    double mFrontWingHeight;       
-    double mFrontRideHeight;       
-    double mRearRideHeight;        
-    double mDrag;                  
-    double mFrontDownforce;        
-    double mRearDownforce;       
-
-    // State/damage info
-    double mFuel;                  // amount of fuel (liters)
-    double mEngineMaxRPM;          // <--- EXACT POSITION FOR REV LIMIT
-    unsigned char mScheduledStops; 
-    bool  mOverheating;            
-    bool  mDetached;               
-    bool  mHeadlights;             
-    unsigned char mDentSeverity[8];
-    double mLastImpactET;          
-    double mLastImpactMagnitude;   
-    TelemVect3 mLastImpactPos;  
-
-    // Expanded fields
-    double mEngineTorque;          
-    long mCurrentSector;           
-    unsigned char mSpeedLimiter;   
-    unsigned char mMaxGears;       
-    unsigned char mFrontTireCompoundIndex;   
-    unsigned char mRearTireCompoundIndex;    
-    double mFuelCapacity;          
-    unsigned char mFrontFlapActivated;       
-    unsigned char mRearFlapActivated;        
-    unsigned char mRearFlapLegalStatus;      
-    unsigned char mIgnitionStarter;
-
-    char mFrontTireCompoundName[18];         
-    char mRearTireCompoundName[18]; 
-
-    unsigned char mSpeedLimiterAvailable;    
-    unsigned char mAntiStallActivated;       
-    unsigned char mUnused[2];                
-    float mVisualSteeringWheelRange;  
-
-    double mRearBrakeBias;                   
-    double mTurboBoostPressure;              
-    float mPhysicsToGraphicsOffset[3];       
-    float mPhysicalSteeringWheelRange;  
-
-    // deltabest
-    double mDeltaBest;
-     
-    double mBatteryChargeFraction; // <--- EXACT POSITION FOR HYBRID BATTERY [0.0-1.0]
-};
-
-#pragma pack( pop )
-
-class LMUTelemetry 
+class LMUTelemetry
 {
 public:
     static LMUTelemetry& get()
@@ -118,58 +22,72 @@ public:
 
     void update()
     {
-        if (!h_MapFile) 
+        if (!p_Layout)
         {
-            // LMU official plugin uses this exact buffer name
-            h_MapFile = OpenFileMappingA(FILE_MAP_READ, FALSE, "$rFactor2SMMP_Telemetry$");
-            if (h_MapFile) 
-            {
-                p_Telemetry = (TelemInfoV01*)MapViewOfFile(h_MapFile, FILE_MAP_READ, 0, 0, sizeof(TelemInfoV01));
-            }
+            h_MapFile = OpenFileMappingA(FILE_MAP_READ, FALSE, LMU_SHARED_MEMORY_FILE);
+            if (!h_MapFile) return;
+
+            p_Layout = (SharedMemoryLayout*)MapViewOfFile(h_MapFile, FILE_MAP_READ, 0, 0, sizeof(SharedMemoryLayout));
+            if (!p_Layout) { CloseHandle(h_MapFile); h_MapFile = nullptr; return; }
         }
+
+        if (!lock)
+        {
+            lock = SharedMemoryLock::MakeSharedMemoryLock();
+            if (!lock) return;
+        }
+
+        // never block the render thread: try briefly, keep last good copy on failure
+        if (!lock->TryLockSpin(1000)) return;
+
+        const SharedMemoryTelemetryData& t = p_Layout->data.telemetry;
+        if (t.playerHasVehicle && t.playerVehicleIdx < 104)
+        {
+            m_Telem = t.telemInfo[t.playerVehicleIdx];
+            m_Valid = true;
+        }
+        else
+        {
+            m_Valid = false;
+        }
+
+        lock->Unlock();
     }
 
-    float get_throttle() { return p_Telemetry ? (float)p_Telemetry->mUnfilteredThrottle : 0.0f; }
-    float get_brake()    { return p_Telemetry ? (float)p_Telemetry->mUnfilteredBrake : 0.0f; }
-    float get_clutch()    { return p_Telemetry ? (float)p_Telemetry->mUnfilteredClutch : 0.0f; }
-    float get_ffb()    { return p_Telemetry ? (float)p_Telemetry->mUnfilteredSteering : 0.0f; }
-    int   get_gear()     { return p_Telemetry ? (int)p_Telemetry->mGear : 0; }
-    float get_RPM()      { return p_Telemetry ? (float)p_Telemetry->mEngineRPM : 0.0f; }
+    void shutdown()
+    {
+        if (p_Layout) { UnmapViewOfFile(p_Layout); p_Layout = nullptr; }
+        if (h_MapFile) { CloseHandle(h_MapFile); h_MapFile = nullptr; }
+        lock.reset();       // closes the lock handles; update() recreates it when needed
+        m_Valid = false;    // never serve stale data after a shutdown
+    }
 
-    // calculates speed in km/h from local velocity vector (mLocalVel.z is forward/backward in rF2 vehicle coords)
+    float get_throttle() { return m_Valid ? (float)m_Telem.mUnfilteredThrottle : 0.0f; }
+    float get_brake()    { return m_Valid ? (float)m_Telem.mUnfilteredBrake    : 0.0f; }
+    float get_clutch()   { return m_Valid ? (float)m_Telem.mUnfilteredClutch   : 0.0f; }
+    float get_ffb()      { return m_Valid ? (float)m_Telem.mUnfilteredSteering : 0.0f; }
+    int   get_gear()     { return m_Valid ? (int)m_Telem.mGear : 0; }
+    float get_RPM()      { return m_Valid ? (float)m_Telem.mEngineRPM : 0.0f; }
+    float get_delta_best()  { return m_Valid ? (float)m_Telem.mDeltaBest : 0.0f; }
+    float get_battery_pct() { return m_Valid ? (float)m_Telem.mBatteryChargeFraction : 0.0f; }
+    float get_max_rpm()
+    {
+        return (m_Valid && m_Telem.mEngineMaxRPM > 0.0) ? (float)m_Telem.mEngineMaxRPM : 8500.0f;
+    }
+
     float get_speed_kmh()
     {
-        if (!p_Telemetry) return 0.0f;
-
-        // Magnitude of velocity vector: sqrt(x^2 + y^2 + z^2) meters per second
-        double vx = p_Telemetry->mLocalVel.x;
-        double vy = p_Telemetry->mLocalVel.y;
-        double vz = p_Telemetry->mLocalVel.z;
-        double speed_ms = std::sqrt(vx * vx + vy * vy + vz * vz);
-        return (float)(speed_ms * 3.6); // Convert m/s to km/h
-    }
-
-    void shutdown() 
-    {
-        if (p_Telemetry) { UnmapViewOfFile(p_Telemetry); p_Telemetry = nullptr; }
-        if (h_MapFile) CloseHandle(h_MapFile);
-    }
-
-    float get_battery_pct() 
-    {
-        // mBatteryChargeFraction is natively [0.0 - 1.0]
-        return p_Telemetry ? (float)p_Telemetry->mBatteryChargeFraction : 1.0f; 
-    }
-
-    float get_max_rpm() 
-    {
-        // mEngineMaxRPM gives the correct rev limit for the current car model
-        return (p_Telemetry && p_Telemetry->mEngineMaxRPM > 0.0) ? (float)p_Telemetry->mEngineMaxRPM : 8500.0f; 
+        if (!m_Valid) return 0.0f;
+        double vx = m_Telem.mLocalVel.x, vy = m_Telem.mLocalVel.y, vz = m_Telem.mLocalVel.z;
+        return (float)(std::sqrt(vx*vx + vy*vy + vz*vz) * 3.6);
     }
 
 private:
     HANDLE h_MapFile = nullptr;
-    TelemInfoV01* p_Telemetry = nullptr;
+    SharedMemoryLayout* p_Layout = nullptr;
+    std::optional<SharedMemoryLock> lock;
+    TelemInfoV01 m_Telem{};
+    bool m_Valid = false;
 };
 
 #endif

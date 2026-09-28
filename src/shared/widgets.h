@@ -179,15 +179,15 @@ namespace widgets
 
         if (rpm_pct > 0.98f) 
         {
-            bg_color = ImVec4(config.gear_bg_overrev_color[0], config.gear_bg_overrev_color[1], config.gear_bg_overrev_color[2], alpha);
+            bg_color = ImVec4(config.gear_bg_overrev_color[0], config.gear_bg_overrev_color[1], config.gear_bg_overrev_color[2], config.gear_bg_overrev_color[3]);
         }
         else if (rpm_pct >= 0.95f) 
         {
-            bg_color = ImVec4(config.gear_bg_optimal_color[0], config.gear_bg_optimal_color[1], config.gear_bg_optimal_color[2], alpha);
+            bg_color = ImVec4(config.gear_bg_optimal_color[0], config.gear_bg_optimal_color[1], config.gear_bg_optimal_color[2], config.gear_bg_optimal_color[3]);
         }
         else if (rpm_pct >= 0.91f) 
         {
-            bg_color = ImVec4(config.gear_bg_redline_color[0], config.gear_bg_redline_color[1], config.gear_bg_redline_color[2], alpha);
+            bg_color = ImVec4(config.gear_bg_redline_color[0], config.gear_bg_redline_color[1], config.gear_bg_redline_color[2], config.gear_bg_redline_color[3]);
         }
         else 
         {
@@ -430,8 +430,9 @@ namespace widgets
             ImGui::ColorEdit4("Optimal Shift (> 95%)", config.gear_bg_optimal_color);
             ImGui::ColorEdit4("Over-Rev (> 98%)", config.gear_bg_overrev_color);
 
+            ImGui::Separator();
             ImGui::Spacing();
-            if (ImGui::Button("Reset Default Colors"))
+            if (ImGui::Button("Reset Gear Colors"))
             {
                 config.gear_bg_redline_color[0] = 1.0f;  config.gear_bg_redline_color[1] = 0.118f; config.gear_bg_redline_color[2] = 0.267f; config.gear_bg_redline_color[3] = 1.0f;
                 config.gear_bg_optimal_color[0] = 0.0f;  config.gear_bg_optimal_color[1] = 0.667f; config.gear_bg_optimal_color[2] = 1.0f;   config.gear_bg_optimal_color[3] = 1.0f;
@@ -442,30 +443,145 @@ namespace widgets
         }
     }
 
-
     // delta widget //////////////////////////////////////////////////////////////////////////
     void delta_widget(config::AppConfig config)
     {
-        ImGui::SetNextWindowBgAlpha(config.opacity);
-        ImGui::Begin("Delta");
-        ImGui::SetWindowSize(ImVec2(120, 80), ImGuiCond_FirstUseEver);
+        float delta_val = 0.0f;
 
 #ifdef IS_CONTROL_PANEL
-        ImGui::Text("Delta: +0.234s (Test)");
+        delta_val = -0.342f; 
 #else
-        ImGui::Text("Delta: +0.234s");
+        LMUTelemetry::get().update();
+        delta_val = LMUTelemetry::get().get_delta_best(); 
+        
+        if (!config.delta_use_all_time_best) 
+        {
+            delta_val = 0.0f; 
+        }
 #endif
 
+        ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | 
+                                        ImGuiWindowFlags_NoScrollbar | 
+                                        ImGuiWindowFlags_NoScrollWithMouse;
+
+        ImGui::SetNextWindowBgAlpha(config.opacity);
+        ImGui::SetNextWindowSize(ImVec2(240, 70), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(160, 50), ImVec2(600, 150));
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.0f, 6.0f));
+        if (ImGui::Begin("Delta HUD", nullptr, window_flags)) 
+        {
+            ImVec2 avail = ImGui::GetContentRegionAvail();
+            ImVec2 p = ImGui::GetCursorScreenPos();
+            ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+            // dimensions for the split center progress bar
+            float bar_height = avail.y * 0.45f;
+            float bar_width = avail.x;
+            float center_x = p.x + bar_width * 0.5f;
+
+            // draw Split Bar Background
+            ImVec2 bg_min = p;
+            ImVec2 bg_max = ImVec2(p.x + bar_width, p.y + bar_height);
+            draw_list->AddRectFilled(bg_min, bg_max, ImGui::GetColorU32(ImVec4(0.15f, 0.15f, 0.18f, 1.0f)), 2.0f);
+
+            // center dividing tick mark
+            draw_list->AddLine(ImVec2(center_x, p.y), ImVec2(center_x, p.y + bar_height), IM_COL32(200, 200, 200, 200), 1.5f);
+
+            // calculate Fill Width (cap max visual reach at +/- 2.0 seconds)
+            float max_delta_range = 2.0f; 
+            float clamped_delta = std::clamp(delta_val, -max_delta_range, max_delta_range);
+            float fill_fraction = std::abs(clamped_delta) / max_delta_range;
+            float half_bar_width = (bar_width * 0.5f);
+            float fill_len = fill_fraction * half_bar_width;
+
+            ImVec4 neg_col = ImVec4(config.delta_negative_color[0], config.delta_negative_color[1], config.delta_negative_color[2], config.delta_negative_color[3]);
+            ImVec4 pos_col = ImVec4(config.delta_positive_color[0], config.delta_positive_color[1], config.delta_positive_color[2], config.delta_positive_color[3]);
+
+            //  render Bar Color
+            if (delta_val < 0.0f) 
+            {
+                // expands to the right from center
+                ImVec2 fill_min = ImVec2(center_x, p.y);
+                ImVec2 fill_max = ImVec2(center_x + fill_len, p.y + bar_height);
+                draw_list->AddRectFilled(fill_min, fill_max, ImGui::ColorConvertFloat4ToU32(neg_col), 2.0f);
+            } 
+            else if (delta_val > 0.0f) 
+            {
+                // expands to the left from center
+                ImVec2 fill_min = ImVec2(center_x - fill_len, p.y);
+                ImVec2 fill_max = ImVec2(center_x, p.y + bar_height);
+                draw_list->AddRectFilled(fill_min, fill_max, ImGui::ColorConvertFloat4ToU32(pos_col), 2.0f);
+            }
+
+            // advance cursor past the drawn bar height + spacing
+            ImGui::Dummy(ImVec2(bar_width, bar_height + 4.0f));
+
+            // render Delta Value Digits 
+            char delta_buf[32];
+            if (delta_val < 0.0f)
+                snprintf(delta_buf, sizeof(delta_buf), "-%.3f", std::abs(delta_val));
+            else if (delta_val > 0.0f)
+                snprintf(delta_buf, sizeof(delta_buf), "+%.3f", delta_val);
+            else
+                snprintf(delta_buf, sizeof(delta_buf), "0.000");
+
+            ImVec4 text_col = (delta_val < 0.0f) ? neg_col : 
+                              (delta_val > 0.0f) ? pos_col : 
+                              ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+
+            // apply font scale safely
+            float old_font_scale = ImGui::GetFont()->Scale;
+            ImGui::GetFont()->Scale *= std::clamp(config.delta_font_scale, 0.5f, 3.0f);
+            ImGui::PushFont(ImGui::GetFont());
+
+            ImGui::PushStyleColor(ImGuiCol_Text, text_col);
+            float text_width = ImGui::CalcTextSize(delta_buf).x;
+            ImGui::SetCursorPosX((avail.x - text_width) * 0.5f);
+            ImGui::Text("%s", delta_buf);
+            ImGui::PopStyleColor();
+            ImGui::PopFont();
+            ImGui::GetFont()->Scale = old_font_scale; //restore scale
+        }
         ImGui::End();
+        ImGui::PopStyleVar();
     }
 
     inline void delta_settings_panel(bool* p_open, config::AppConfig& config)
     {
         if (ImGui::Begin("Delta Settings", p_open, 0))
         {
-            ImGui::Text("Delta settings");
+            ImGui::SetWindowSize(ImVec2(240, 120), ImGuiCond_FirstUseEver);
+
+            ImGui::Text("Delta Mode");
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            if (ImGui::RadioButton("All-Time / Best Lap", config.delta_use_all_time_best)) 
+                config.delta_use_all_time_best = true;
+            
+            if (ImGui::RadioButton("Last Lap", !config.delta_use_all_time_best)) 
+                config.delta_use_all_time_best = false;
+
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::Text("Appearance");
+            ImGui::Spacing();
+
+            ImGui::SliderFloat("Font Scale", &config.delta_font_scale, 0.5f, 2.5f, "%.1fx");
+            ImGui::ColorEdit4("Delta negative", config.delta_negative_color);
+            ImGui::ColorEdit4("Delta positive", config.delta_positive_color);
+
+            ImGui::Separator();
+            ImGui::Spacing();
+            if (ImGui::Button("Reset Delta Colors"))
+            {
+                config.delta_negative_color[0] = 0.02f;  config.delta_negative_color[1] = 0.9f; config.delta_negative_color[2] = 0.0f; config.delta_negative_color[3] = 1.0f;
+                config.delta_positive_color[0] = 0.898f;  config.delta_positive_color[1] = 0.133f; config.delta_positive_color[2] = 0.286f;   config.delta_positive_color[3] = 1.0f;
+            }
+
+            ImGui::End();
         }
-        ImGui::End();
     }
 };
 

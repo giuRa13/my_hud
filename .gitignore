@@ -3,6 +3,9 @@
 /bin/
 /lib/
 
+# Studio 397 plugin SDK headers (not redistributable)
+/src/shared/SharedMemoryInterface/
+
 # IDE specific files (Visual Studio, VS Code, CLion)
 .vs/
 .vscode/

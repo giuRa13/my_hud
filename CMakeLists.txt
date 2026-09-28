@@ -88,3 +88,7 @@ target_link_libraries(my_hud_dll PRIVATE
 )
 
 target_compile_definitions(my_hud_dll PRIVATE IS_OVERLAY_DLL)
+
+#if(NOT EXISTS "${CMAKE_SOURCE_DIR}/src/shared/SharedMemoryInterface/InternalsPlugin.hpp")
+#    message(FATAL_ERROR "Missing LMU SDK headers. See README: copy them from the game folder into src/shared/SharedMemoryInterface/")
+#endif()
