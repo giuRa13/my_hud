@@ -36,6 +36,7 @@ private:
     bool show_pedals_settings = false; 
     bool show_delta_settings = false;
     bool show_gear_settings = false;
+    bool show_wheel_settings = false;
 };
 
 #endif

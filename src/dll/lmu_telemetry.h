@@ -82,6 +82,16 @@ public:
         return (float)(std::sqrt(vx*vx + vy*vy + vz*vz) * 3.6);
     }
 
+    float get_steering() { return m_Valid ? (float)m_Telem.mUnfilteredSteering : 0.0f; }   // -1..1
+    float get_wheel_range_deg()   // total lock-to-lock rotation of the wheel
+    {
+        if (!m_Valid) return 540.0f;
+        float r = m_Telem.mVisualSteeringWheelRange;
+        if (r <= 0.0f) return 540.0f;
+        if (r < 20.0f) r *= 57.2957795f;   // handles the value being in radians
+        return r;
+    }
+
 private:
     HANDLE h_MapFile = nullptr;
     SharedMemoryLayout* p_Layout = nullptr;

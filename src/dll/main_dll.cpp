@@ -14,6 +14,7 @@
 #include <backends/imgui_impl_dx11.h>
 #include <exe/gui_layer.h> 
 #include <shared/widgets.h>
+#include <shared/texture_loader.h>
 #include <dll/lmu_telemetry.h>
 #include <MinHook.h>
 
@@ -46,6 +47,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* p_SwapChain, UINT SyncInterval, UINT
     // read configuration live from disk every frame
     config::AppConfig config = config::load_config("config.json", g_hModule);
 
+    // one time init block
     if (!g_Initialized)
     {
         // know the hook is actively executing inside LMU!
@@ -54,6 +56,10 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* p_SwapChain, UINT SyncInterval, UINT
         if (SUCCEEDED(p_SwapChain->GetDevice(__uuidof(ID3D11Device), (void**)&p_Device)))
         {
             p_Device->GetImmediateContext(&p_Context);
+
+            widgets::g_texture_device  = p_Device;  
+            widgets::g_texture_context = p_Context;
+
             DXGI_SWAP_CHAIN_DESC sd;
             p_SwapChain->GetDesc(&sd);
 
@@ -108,6 +114,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* p_SwapChain, UINT SyncInterval, UINT
     if (config.show_pedals)  widgets::pedals_widget(config);
     if (config.show_delta)  widgets::delta_widget(config);
     if (config.show_gear)  widgets::gear_widget(config);
+    if (config.show_wheel)  widgets::wheel_widget(config);
 
     // render ImGui drawing data onto LMU's backbuffer
     ImGui::Render();

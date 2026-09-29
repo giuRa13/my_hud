@@ -3,8 +3,21 @@
 
 #include <shared/config.h>
 #include <dll/lmu_telemetry.h>
+#include <shared/texture_loader.h>
 #include <imgui.h>
+#include <string>
+#include <cmath>
 #include <algorithm>
+
+#ifdef IS_CONTROL_PANEL
+#include <windows.h>
+#include <commdlg.h>
+#pragma comment(lib, "comdlg32.lib")
+#endif
+
+#ifndef RESOURCES_PATH
+#define RESOURCES_PATH ""   // safety net if a build target forgets to define it
+#endif
 
 namespace widgets
 {
@@ -132,9 +145,8 @@ namespace widgets
             ImGui::ColorEdit4("Brake Color", config.brake_color);
             ImGui::ColorEdit4("Clutch Color", config.clutch_color);
             ImGui::ColorEdit4("FFB Color", config.ffb_color);
-
-            ImGui::End();
         }
+        ImGui::End();
     }
 
     // gear widget //////////////////////////////////////////////////////////////////////////
@@ -438,9 +450,8 @@ namespace widgets
                 config.gear_bg_optimal_color[0] = 0.0f;  config.gear_bg_optimal_color[1] = 0.667f; config.gear_bg_optimal_color[2] = 1.0f;   config.gear_bg_optimal_color[3] = 1.0f;
                 config.gear_bg_overrev_color[0] = 1.0f;  config.gear_bg_overrev_color[1] = 0.0f;   config.gear_bg_overrev_color[2] = 1.0f;   config.gear_bg_overrev_color[3] = 1.0f;
             }
-
-            ImGui::End();
         }
+        ImGui::End();
     }
 
     // delta widget //////////////////////////////////////////////////////////////////////////
@@ -579,10 +590,159 @@ namespace widgets
                 config.delta_negative_color[0] = 0.02f;  config.delta_negative_color[1] = 0.9f; config.delta_negative_color[2] = 0.0f; config.delta_negative_color[3] = 1.0f;
                 config.delta_positive_color[0] = 0.898f;  config.delta_positive_color[1] = 0.133f; config.delta_positive_color[2] = 0.286f;   config.delta_positive_color[3] = 1.0f;
             }
-
-            ImGui::End();
         }
+        ImGui::End();
     }
+
+    // wheel widget //////////////////////////////////////////////////////////////////////////
+    inline std::string default_wheel_image_path()
+    {
+        return std::string(RESOURCES_PATH) + "steering_white.png";
+    }
+
+    inline std::string effective_wheel_image_path(const config::AppConfig& config)
+    {
+        return config.wheel_image_path.empty() ? default_wheel_image_path() : config.wheel_image_path;
+    }
+
+    inline void wheel_size_callback(ImGuiSizeCallbackData* d)
+    {
+        d->DesiredSize.x = d->DesiredSize.y = std::max(d->DesiredSize.x, d->DesiredSize.y); // keep square
+    }
+
+    inline void wheel_widget(const config::AppConfig& config)
+    {
+        static std::string loaded_path;
+        static ImTextureID tex = (ImTextureID)0;
+        static bool load_failed = false;
+
+        std::string want_path = effective_wheel_image_path(config);
+
+        // (re)load the texture only when the resolved path changes
+        if (want_path != loaded_path)
+        {
+            if (tex) { platform_free_texture(tex); tex = (ImTextureID)0; }
+            loaded_path = want_path;
+            int w = 0, h = 0;
+            load_failed = !platform_load_texture(loaded_path.c_str(), tex, w, h);
+        }
+
+        float steer = 0.0f;
+        float range_deg = 540.0f;
+#ifdef IS_CONTROL_PANEL
+        steer = 0.35f; // angle = 0.35 * (540 / 2) = 0.35 * 270 = 94.5°
+        // steer is meant to range -1..1 where ±1.0 = full lock (270° each way for a 540° wheel), so 0.35 is 35% of the way to full right lock, i.e. 94.5° — a reasonable amount for, say, a slow corner.
+#else
+        LMUTelemetry::get().update();
+        steer = LMUTelemetry::get().get_steering();
+        range_deg = LMUTelemetry::get().get_wheel_range_deg();
+#endif
+        // +steer = right = clockwise on screen
+        //float angle = steer * (range_deg * 0.5f) * 0.0174532925f;
+        float angle = steer * (range_deg * 0.5f) * config.wheel_rotation_multiplier * 0.0174532925f;
+
+        ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
+                             ImGuiWindowFlags_NoScrollbar |
+                             ImGuiWindowFlags_NoScrollWithMouse |
+                             ImGuiWindowFlags_NoCollapse;   // still resizable from the edges
+
+        ImGui::SetNextWindowBgAlpha(config.opacity);
+        ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(60, 60), ImVec2(800, 800), wheel_size_callback);
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        if (ImGui::Begin("Wheel", nullptr, flags))
+        {
+            ImVec2 pos  = ImGui::GetWindowPos();
+            ImVec2 size = ImGui::GetWindowSize();
+            ImVec2 c(pos.x + size.x * 0.5f, pos.y + size.y * 0.5f);
+            float half = std::min(size.x, size.y) * 0.5f;
+
+            if (tex && !load_failed)
+            {
+                float ca = std::cos(angle), sa = std::sin(angle);
+                auto rot = [&](float x, float y) { return ImVec2(c.x + x * ca - y * sa, c.y + x * sa + y * ca); };
+
+                ImGui::GetWindowDrawList()->AddImageQuad(tex,
+                    rot(-half, -half), rot(half, -half), rot(half, half), rot(-half, half));
+            }
+            else
+            {
+                ImGui::TextWrapped("Wheel image failed to load.");
+            }
+        }
+        ImGui::End();
+        ImGui::PopStyleVar(2);
+    }
+
+#ifdef IS_CONTROL_PANEL
+    inline std::string pick_image_file()
+    {
+        char file[MAX_PATH] = {};
+        OPENFILENAMEA ofn = {};
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner   = GetActiveWindow();
+        ofn.lpstrFilter = "Images (*.png;*.jpg;*.jpeg;*.bmp;*.tga)\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0All files\0*.*\0";
+        ofn.lpstrFile   = file;
+        ofn.nMaxFile    = MAX_PATH;
+        ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR; // NOCHANGEDIR: keeps "config.json" relative path valid
+        return GetOpenFileNameA(&ofn) ? std::string(file) : std::string();
+    }
+
+    inline void wheel_settings_panel(bool* p_open, config::AppConfig& config)
+    {
+        static std::string error;
+
+        if (ImGui::Begin("Wheel Settings", p_open, 0))
+        {
+            ImGui::SetWindowSize(ImVec2(340, 170), ImGuiCond_FirstUseEver);
+
+            ImGui::Text("Wheel image (square, PNG with transparent background)");
+            ImGui::Spacing();
+
+            bool using_default = config.wheel_image_path.empty();
+            ImGui::TextWrapped("%s", using_default
+                ? "(using built-in default)"
+                : config.wheel_image_path.c_str());
+            ImGui::Spacing();
+
+            if (ImGui::Button("Browse..."))
+            {
+                std::string path = pick_image_file();
+                if (!path.empty())
+                {
+                    int w = 0, h = 0, ch = 0;
+                    if (!stbi_info(path.c_str(), &w, &h, &ch))
+                        error = "Could not read that image.";
+                    else if (w != h)
+                        error = "Image must be square (it is " + std::to_string(w) + "x" + std::to_string(h) + ").";
+                    else
+                    {
+                        config.wheel_image_path = path;
+                        error.clear();
+                    }
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Reset to Default"))
+            {
+                config.wheel_image_path.clear();
+                error.clear();
+            }
+
+            if (!error.empty())
+                ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "%s", error.c_str());
+
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::Text("Rotation");
+            ImGui::SliderFloat("Rotation Multiplier", &config.wheel_rotation_multiplier, 0.3f, 1.5f, "%.2fx");
+        }
+        ImGui::End();   
+    }
+#endif
+
 };
 
 #endif

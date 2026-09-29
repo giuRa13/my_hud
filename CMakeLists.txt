@@ -22,6 +22,12 @@ endif()
 add_subdirectory(thirdparty/imgui-docking)
 add_subdirectory(thirdparty/implot)
 add_subdirectory(thirdparty/minhook)
+add_library(stb_image STATIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/stb_image/src/stb_image.cpp"
+)
+target_include_directories(stb_image PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/stb_image/include"
+)
 
 # Define a common "library" for ImGui setup to avoid code duplication
 # This includes ImGui, ImPlot, and backends used by BOTH targets
@@ -32,7 +38,7 @@ target_include_directories(GuiCommon INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/implot"
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
-target_link_libraries(GuiCommon INTERFACE imgui implot)
+target_link_libraries(GuiCommon INTERFACE imgui implot stb_image)
 
 
 #############################################
@@ -56,6 +62,9 @@ target_link_libraries(my_hud_panel PRIVATE
 )
 
 target_compile_definitions(my_hud_panel PRIVATE IS_CONTROL_PANEL)
+target_compile_definitions(my_hud_panel PRIVATE RESOURCES_PATH="${CMAKE_CURRENT_SOURCE_DIR}/resources/")
+# switch to a path relative to the running executable (using GetModuleFileNameA the same way Inject Overlay already does) 
+# and copy resources/wheel_default.png next to your shipped binaries in your release package
 
 
 #############################################
@@ -88,6 +97,7 @@ target_link_libraries(my_hud_dll PRIVATE
 )
 
 target_compile_definitions(my_hud_dll PRIVATE IS_OVERLAY_DLL)
+target_compile_definitions(my_hud_dll PRIVATE RESOURCES_PATH="${CMAKE_CURRENT_SOURCE_DIR}/resources/")
 
 #if(NOT EXISTS "${CMAKE_SOURCE_DIR}/src/shared/SharedMemoryInterface/InternalsPlugin.hpp")
 #    message(FATAL_ERROR "Missing LMU SDK headers. See README: copy them from the game folder into src/shared/SharedMemoryInterface/")

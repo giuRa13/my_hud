@@ -2,10 +2,13 @@
 #include <exe/injector.h>
 #include <shared/config.h>
 #include <shared/widgets.h>
+#include <shared/texture_loader.h>
 #include <imgui/imgui_internal.h>
 
 void Gui_Layer::init(HWND hwnd, LPDIRECT3DDEVICE9 g_pd3dDevice)
 {
+    widgets::g_texture_device = g_pd3dDevice;
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -88,7 +91,7 @@ void Gui_Layer::shutdown()
     // tell the DLL (which lives inside LMU) to stop drawing
     config.enable_overlay = false;
     config::save_config(config, "config.json", NULL);
-    
+
     ImGui_ImplDX9_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
@@ -111,10 +114,7 @@ void Gui_Layer::draw_widgets()
         if (ImGui::Checkbox("Enable V-Sync",  &config.enable_vsync)) 
             vsync_changed = true; // Signal App that need to reset the D3D device
 
-        if (ImGui::SliderFloat("Background Alpha", &config.opacity, 0.0f, 1.0f))
-        {
-            // optional extra colors setting
-        } 
+        if (ImGui::SliderFloat("Background Alpha", &config.opacity, 0.0f, 1.0f)) {/*optional extra colors setting*/} 
         
         if (ImGui::ColorEdit4("Accent Color", &accent_color.x)) 
         {
@@ -122,7 +122,6 @@ void Gui_Layer::draw_widgets()
             config.accent_g = accent_color.y;
             config.accent_b = accent_color.z;
             config.accent_a = accent_color.w;
-
             apply_accent_color();
         }
 
@@ -156,6 +155,12 @@ void Gui_Layer::draw_widgets()
         ImGui::SameLine();
         if (ImGui::Button("Config##Gear")) 
             show_gear_settings = !show_gear_settings;
+
+        // wheel //////////////////////////////////////////////////////////
+        ImGui::Checkbox("Wheel", &config.show_wheel);
+        ImGui::SameLine();
+        if (ImGui::Button("Config##Wheel"))
+            show_wheel_settings = !show_wheel_settings;
 
         ImGui::Separator();
         ImGui::Spacing();
@@ -197,13 +202,14 @@ void Gui_Layer::draw_widgets()
         if (config.show_pedals) widgets::pedals_widget(config);
         if (config.show_delta) widgets::delta_widget(config);
         if (config.show_gear) widgets::gear_widget(config);
+        if (config.show_wheel)  widgets::wheel_widget(config);
     }
 
     // settings //////////////////////////////////////////////////////////
     if (show_pedals_settings) widgets::pedals_settings_panel(&show_pedals_settings, config);
     if (show_delta_settings) widgets::delta_settings_panel(&show_delta_settings, config);
     if (show_gear_settings) widgets::gear_settings_panel(&show_gear_settings, config);
-    
+    if (show_wheel_settings)  widgets::wheel_settings_panel(&show_wheel_settings, config);
 }
 
 void Gui_Layer::set_theme()

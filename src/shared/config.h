@@ -44,6 +44,11 @@ namespace config
         float delta_font_scale = 1.0f;
         float delta_negative_color[4] = { 0.02f, 0.9f, 0.0f, 1.0f }; // Default Green
         float delta_positive_color[4]    = { 0.898f, 0.133f, 0.286f, 1.0f }; // Default Red
+
+        // wheels settings
+        bool show_wheel = true;
+        std::string wheel_image_path; // empty = use the built-in default
+        float wheel_rotation_multiplier = 1.0f;
     };
 
     // gets the directory where the EXE or DLL is running
@@ -122,6 +127,10 @@ namespace config
             file << "delta_positive_g=" << config.delta_positive_color[1] << "\n";
             file << "delta_positive_b=" << config.delta_positive_color[2] << "\n";
             file << "delta_posituve_a=" << config.delta_positive_color[3] << "\n";
+            //
+            file << "show_wheel=" << (config.show_wheel ? 1 : 0) << "\n";
+            file << "wheel_image_path=" << config.wheel_image_path << "\n";
+            file << "wheel_rotation_multiplier=" << config.wheel_rotation_multiplier << "\n";
 
             file.close();
         }
@@ -143,7 +152,9 @@ namespace config
             if (std::getline(ss, key, '=')) 
             {
                 std::string val_str;
-                if (std::getline(ss, val_str)) {
+                //if (std::getline(ss, val_str)) {
+                std::getline(ss, val_str); // ok if this fails (e.g. empty path): val_str stays ""
+                {
                     if (key == "enable_overlay") config.enable_overlay = (std::stoi(val_str) != 0);
                     else if (key == "design_mode") config.design_mode = (std::stoi(val_str) != 0);
                     else if (key == "opacity") config.opacity = std::stof(val_str);
@@ -202,6 +213,10 @@ namespace config
                     else if (key == "delta_positive_g") config.delta_positive_color[1] = std::stof(val_str);
                     else if (key == "delta_positive_b") config.delta_positive_color[2] = std::stof(val_str);
                     else if (key == "delta_positive_a") config.delta_positive_color[3] = std::stof(val_str);
+
+                    else if (key == "show_wheel") config.show_wheel = (std::stoi(val_str) != 0);
+                    else if (key == "wheel_image_path") config.wheel_image_path = val_str; // no std::stoi/std::stof needed since it's not numeric
+                    else if (key == "wheel_rotation_multiplier") config.wheel_rotation_multiplier = std::stof(val_str);
                 }
             }
         }
