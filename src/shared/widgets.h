@@ -4,6 +4,7 @@
 #include <shared/config.h>
 #include <dll/lmu_telemetry.h>
 #include <shared/texture_loader.h>
+#include <dll/lap_history.h>
 #include <imgui.h>
 #include <string>
 #include <cmath>
@@ -21,6 +22,19 @@
 
 namespace widgets
 {
+    // draws text 4x with tiny offsets to fake a bold weight
+    inline void draw_text_maybe_bold(ImDrawList* dl, ImVec2 pos, ImU32 col, const char* text, bool bold, float offset = 0.6f)
+    {
+        if (bold)
+        {
+            dl->AddText(ImVec2(pos.x - offset, pos.y), col, text);
+            dl->AddText(ImVec2(pos.x + offset, pos.y), col, text);
+            dl->AddText(ImVec2(pos.x, pos.y - offset), col, text);
+            dl->AddText(ImVec2(pos.x, pos.y + offset), col, text);
+        }
+        dl->AddText(pos, col, text);
+    }
+
     inline void draw_custom_bar(const char* label, float value, bool horizontal, float width, float height, ImVec4 bar_color)
     {
         ImU32 col32 = ImGui::ColorConvertFloat4ToU32(bar_color);
@@ -65,7 +79,7 @@ namespace widgets
         }
     }
 
-    // pedals widget //////////////////////////////////////////////////////////////////////////
+    // pedals widget ///////////////////////////////////////////////////////////////////////////////////////////////////////////
     void pedals_widget(config::AppConfig config)
     {
         float throttle = 0.0f;
@@ -149,7 +163,7 @@ namespace widgets
         ImGui::End();
     }
 
-    // gear widget //////////////////////////////////////////////////////////////////////////
+    // gear widget ///////////////////////////////////////////////////////////////////////////////////////////////////////////
     void gear_widget(config::AppConfig& config) 
     {
         std::string gear_str;
@@ -215,7 +229,7 @@ namespace widgets
         ImGui::SetNextWindowSize(ImVec2(200, 250), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSizeConstraints(ImVec2(130, 180), ImVec2(500, 600));
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4.0f, 4.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         if (ImGui::Begin("Gear & Telemetry", nullptr, window_flags)) 
         {
             ImVec2 window_size = ImGui::GetWindowSize();
@@ -225,7 +239,6 @@ namespace widgets
             // define fixed/proportional heights for the bottom bars (Total bottom stack = 1.5 parts out of 5.0)
             float total_parts = 5.0f;
             float section_unit = avail_height / total_parts;
-            
             float battery_height = section_unit * 0.5f;
             float rpm_height     = section_unit * 1.0f;
             // remaining top space is completely consumed by the Gear & Speed section
@@ -258,7 +271,11 @@ namespace widgets
                 
                 ImGui::SetCursorPosX((child_size.x - speed_width) * 0.5f);
                 ImGui::SetCursorPosY(speed_y);
-                ImGui::Text("%s", speed_buf);
+                {
+                    ImVec2 spos = ImGui::GetCursorScreenPos();
+                    draw_text_maybe_bold(ImGui::GetWindowDrawList(), spos, ImGui::GetColorU32(ImGuiCol_Text), speed_buf, config.gear_font_bold);
+                }
+                ImGui::Dummy(ImVec2(speed_width, speed_height));
                 ImGui::PopFont();
 
                 // 2 - measure and render Gear (Takes all remaining space above the speed text) ---
@@ -268,7 +285,6 @@ namespace widgets
                 // scale gear font dynamically to fill that remaining upper space
                 float gear_font_scale = base_font_scale * (5.8f * dynamic_scale);
                 
-                // safety check: ensure gear font doesn't overflow the available upper height
                 ImGui::GetFont()->Scale = gear_font_scale;
                 ImGui::PushFont(ImGui::GetFont());
                 float gear_width = ImGui::CalcTextSize(gear_str.c_str()).x;
@@ -293,7 +309,12 @@ namespace widgets
                 ImGui::PushFont(ImGui::GetFont());
                 ImGui::SetCursorPosX((child_size.x - gear_width) * 0.5f);
                 ImGui::SetCursorPosY(gear_y);
-                ImGui::Text("%s", gear_str.c_str());
+                //ImGui::Text("%s", gear_str.c_str());
+                {
+                    ImVec2 gpos = ImGui::GetCursorScreenPos();
+                    draw_text_maybe_bold(ImGui::GetWindowDrawList(), gpos, ImGui::GetColorU32(ImGuiCol_Text), gear_str.c_str(), config.gear_font_bold);
+                }
+                ImGui::Dummy(ImVec2(gear_width, gear_height)); 
                 ImGui::PopFont();
 
                 ImGui::GetFont()->Scale = base_font_scale;
@@ -319,53 +340,26 @@ namespace widgets
                 ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
                 // background box
-                draw_list->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), ImGui::GetColorU32(ImVec4(0.15f, 0.15f, 0.18f, 1.0f)), 3.0f);
+                draw_list->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), ImGui::GetColorU32(ImVec4(0.15f, 0.15f, 0.18f, 1.0f)), 0.0f);
                 
                 // fill fraction (if has battery)
                 if (has_battery && battery_pct > 0.0f) 
                 {
                     float fill_w = std::max(0.0f, std::min(1.0f, battery_pct)) * sz.x;
-                    draw_list->AddRectFilled(p, ImVec2(p.x + fill_w, p.y + sz.y), ImGui::GetColorU32(ImVec4(0.2f, 0.6f, 1.0f, 1.0f)), 3.0f);
+                    draw_list->AddRectFilled(p, ImVec2(p.x + fill_w, p.y + sz.y), ImGui::GetColorU32(ImVec4(config.gear_battery_color[0], config.gear_battery_color[1], config.gear_battery_color[2], config.gear_battery_color[3])), 0.0f);
                 }
 
                 // centered Text Overlay
                 ImVec2 text_size = ImGui::CalcTextSize(batt_buf);
                 ImVec2 text_pos = ImVec2(p.x + (sz.x - text_size.x) * 0.5f, p.y + (sz.y - text_size.y) * 0.5f);
-                draw_list->AddText(text_pos, ImGui::GetColorU32(ImGuiCol_Text), batt_buf);
+                //draw_list->AddText(text_pos, ImGui::GetColorU32(ImGuiCol_Text), batt_buf);
+                draw_text_maybe_bold(draw_list, text_pos, ImGui::GetColorU32(ImGuiCol_Text), batt_buf, config.gear_font_bold);
 
                 // cdvance cursor so layout stays consistent
                 ImGui::Dummy(sz);
 
                 ImGui::EndChild();
             }
-            /*{
-                ImGui::BeginChild("BatterySection", ImVec2(avail_width, battery_height), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-                
-                char batt_buf[32];
-                if (has_battery) 
-                    snprintf(batt_buf, sizeof(batt_buf), "%.0f%%", battery_pct * 100.0f);
-                else 
-                    snprintf(batt_buf, sizeof(batt_buf), "N/A");
-                
-                ImVec2 bar_size = ImVec2(-FLT_MIN, battery_height * 0.75f);
-                
-                 if (has_battery) 
-                 {
-                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
-                    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.18f, 1.0f));
-                    ImGui::ProgressBar(battery_pct, bar_size, batt_buf);
-                    ImGui::PopStyleColor(2);
-                } 
-                else 
-                {
-                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.188f, 0.69f, 1.0f, 0.5f));
-                    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 0.5f));
-                    ImGui::ProgressBar(0.0f, bar_size, batt_buf);
-                    ImGui::PopStyleColor(2);
-                }
-
-                ImGui::EndChild();
-            }*/
 
             // --- RPM PROGRESS BAR ---
             {
@@ -385,48 +379,31 @@ namespace widgets
                 ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
                 // background box
-                draw_list->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), ImGui::GetColorU32(ImVec4(0.15f, 0.15f, 0.18f, 1.0f)), 3.0f);
+                draw_list->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), ImGui::GetColorU32(ImVec4(0.15f, 0.15f, 0.18f, 1.0f)), 0.0f);
                     
                 // fill fraction
                 if (rpm_pct > 0.0f) 
                 {
                     float fill_w = std::max(0.0f, std::min(1.0f, rpm_pct)) * sz.x;
-                    draw_list->AddRectFilled(p, ImVec2(p.x + fill_w, p.y + sz.y), ImGui::GetColorU32(rpm_color), 3.0f);
+                    draw_list->AddRectFilled(p, ImVec2(p.x + fill_w, p.y + sz.y), ImGui::GetColorU32(rpm_color), 0.0f);
                 }
 
                 // centered Text Overlay
                 ImVec2 text_size = ImGui::CalcTextSize(rpm_buf);
                 ImVec2 text_pos = ImVec2(p.x + (sz.x - text_size.x) * 0.5f, p.y + (sz.y - text_size.y) * 0.5f);
-                draw_list->AddText(text_pos, ImGui::GetColorU32(ImGuiCol_WindowBg), rpm_buf);
+                //draw_list->AddText(text_pos, ImGui::GetColorU32(ImGuiCol_WindowBg), rpm_buf);
+                draw_text_maybe_bold(draw_list, text_pos, ImGui::GetColorU32(ImGuiCol_WindowBg), rpm_buf, config.gear_font_bold);
 
                 // advance cursor
                 ImGui::Dummy(sz);
 
                 ImGui::EndChild();
             }
-             /*{
-                float remaining_height = ImGui::GetContentRegionAvail().y;
-                ImGui::BeginChild("RpmSection", ImVec2(avail_width, remaining_height), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-                
-                char rpm_buf[16];
-                snprintf(rpm_buf, sizeof(rpm_buf), "%.0f RPM", rpm);
-
-                ImVec4 rpm_color = (rpm_pct > 0.9f) ? ImVec4(0.9f, 0.1f, 0.1f, 1.0f) : ImVec4(0.95, 0.95, 0.95, 1.0f);
-                
-                ImVec2 bar_size = ImVec2(-FLT_MIN, remaining_height * 0.75f);
-                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, rpm_color);
-                ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.18f, 1.0f));
-                ImGui::ProgressBar(rpm_pct, bar_size, rpm_buf);
-                ImGui::PopStyleColor(2);
-
-                ImGui::EndChild();
-            }*/
         }   
 
         ImGui::End();
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();
-
     }
 
     inline void gear_settings_panel(bool* p_open, config::AppConfig& config)
@@ -435,12 +412,22 @@ namespace widgets
         {
             ImGui::SetWindowSize(ImVec2(280, 220), ImGuiCond_FirstUseEver);
 
-            ImGui::Text("Shift Light Background Colors");
+            ImGui::Spacing();
+            ImGui::Checkbox("Bold Font", &config.gear_font_bold);
+            ImGui::Separator();
             ImGui::Spacing();
 
+            ImGui::Text("Shift Light Background Colors");
+            ImGui::Spacing();
             ImGui::ColorEdit4("Redline (> 91%)", config.gear_bg_redline_color);
             ImGui::ColorEdit4("Optimal Shift (> 95%)", config.gear_bg_optimal_color);
             ImGui::ColorEdit4("Over-Rev (> 98%)", config.gear_bg_overrev_color);
+
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::Text("Battery color");
+            ImGui::Spacing();
+            ImGui::ColorEdit4("##battery_color", config.gear_battery_color);
 
             ImGui::Separator();
             ImGui::Spacing();
@@ -449,12 +436,14 @@ namespace widgets
                 config.gear_bg_redline_color[0] = 1.0f;  config.gear_bg_redline_color[1] = 0.118f; config.gear_bg_redline_color[2] = 0.267f; config.gear_bg_redline_color[3] = 1.0f;
                 config.gear_bg_optimal_color[0] = 0.0f;  config.gear_bg_optimal_color[1] = 0.667f; config.gear_bg_optimal_color[2] = 1.0f;   config.gear_bg_optimal_color[3] = 1.0f;
                 config.gear_bg_overrev_color[0] = 1.0f;  config.gear_bg_overrev_color[1] = 0.0f;   config.gear_bg_overrev_color[2] = 1.0f;   config.gear_bg_overrev_color[3] = 1.0f;
+                config.gear_battery_color[0] = 0.0f, config.gear_battery_color[1] = 0.815f, config.gear_battery_color[2] = 1.0f, config.gear_battery_color[3] = 1.0f;
+                //  0.2f, 0.6f, 1.0f, 1.0f old      //  0.0f, 0.815f, 1.0f, 1.0f bright     //  0.929f, 0.4f, 0.537f, 1.0f pink
             }
         }
         ImGui::End();
     }
 
-    // delta widget //////////////////////////////////////////////////////////////////////////
+    // delta widget ///////////////////////////////////////////////////////////////////////////////////////////////////////////
     void delta_widget(config::AppConfig config)
     {
         float delta_val = 0.0f;
@@ -494,7 +483,7 @@ namespace widgets
             // draw Split Bar Background
             ImVec2 bg_min = p;
             ImVec2 bg_max = ImVec2(p.x + bar_width, p.y + bar_height);
-            draw_list->AddRectFilled(bg_min, bg_max, ImGui::GetColorU32(ImVec4(0.15f, 0.15f, 0.18f, 1.0f)), 2.0f);
+            draw_list->AddRectFilled(bg_min, bg_max, ImGui::GetColorU32(ImVec4(0.15f, 0.15f, 0.18f, 1.0f)), 0.0f);
 
             // center dividing tick mark
             draw_list->AddLine(ImVec2(center_x, p.y), ImVec2(center_x, p.y + bar_height), IM_COL32(200, 200, 200, 200), 1.5f);
@@ -515,14 +504,14 @@ namespace widgets
                 // expands to the right from center
                 ImVec2 fill_min = ImVec2(center_x, p.y);
                 ImVec2 fill_max = ImVec2(center_x + fill_len, p.y + bar_height);
-                draw_list->AddRectFilled(fill_min, fill_max, ImGui::ColorConvertFloat4ToU32(neg_col), 2.0f);
+                draw_list->AddRectFilled(fill_min, fill_max, ImGui::ColorConvertFloat4ToU32(neg_col), 0.0f);
             } 
             else if (delta_val > 0.0f) 
             {
                 // expands to the left from center
                 ImVec2 fill_min = ImVec2(center_x - fill_len, p.y);
                 ImVec2 fill_max = ImVec2(center_x, p.y + bar_height);
-                draw_list->AddRectFilled(fill_min, fill_max, ImGui::ColorConvertFloat4ToU32(pos_col), 2.0f);
+                draw_list->AddRectFilled(fill_min, fill_max, ImGui::ColorConvertFloat4ToU32(pos_col), 0.0f);
             }
 
             // advance cursor past the drawn bar height + spacing
@@ -543,16 +532,19 @@ namespace widgets
 
             // apply font scale safely
             float old_font_scale = ImGui::GetFont()->Scale;
-            ImGui::GetFont()->Scale *= std::clamp(config.delta_font_scale, 0.5f, 3.0f);
+            ImGui::GetFont()->Scale = std::clamp(config.delta_font_scale, 0.5f, 3.0f);
             ImGui::PushFont(ImGui::GetFont());
 
-            ImGui::PushStyleColor(ImGuiCol_Text, text_col);
             float text_width = ImGui::CalcTextSize(delta_buf).x;
             ImGui::SetCursorPosX((avail.x - text_width) * 0.5f);
-            ImGui::Text("%s", delta_buf);
-            ImGui::PopStyleColor();
+            {
+                ImVec2 dpos = ImGui::GetCursorScreenPos();
+                draw_text_maybe_bold(ImGui::GetWindowDrawList(), dpos, ImGui::ColorConvertFloat4ToU32(text_col), delta_buf, config.delta_font_bold);
+            }
+            ImGui::Dummy(ImGui::CalcTextSize(delta_buf));
+
             ImGui::PopFont();
-            ImGui::GetFont()->Scale = old_font_scale; //restore scale
+            ImGui::GetFont()->Scale = old_font_scale;
         }
         ImGui::End();
         ImGui::PopStyleVar();
@@ -579,6 +571,7 @@ namespace widgets
             ImGui::Text("Appearance");
             ImGui::Spacing();
 
+            ImGui::Checkbox("Bold Font", &config.delta_font_bold);
             ImGui::SliderFloat("Font Scale", &config.delta_font_scale, 0.5f, 2.5f, "%.1fx");
             ImGui::ColorEdit4("Delta negative", config.delta_negative_color);
             ImGui::ColorEdit4("Delta positive", config.delta_positive_color);
@@ -594,7 +587,7 @@ namespace widgets
         ImGui::End();
     }
 
-    // wheel widget //////////////////////////////////////////////////////////////////////////
+    // wheel widget ///////////////////////////////////////////////////////////////////////////////////////////////////////////
     inline std::string default_wheel_image_path()
     {
         return std::string(RESOURCES_PATH) + "steering_white.png";
@@ -742,6 +735,160 @@ namespace widgets
         ImGui::End();   
     }
 #endif
+
+    // lap history widget ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+    inline std::string format_lap_time(float seconds) // format seconds into mm:ss.fff format
+    {
+        if (seconds <= 0.0f) return "--:--.---";
+        int mins = (int)(seconds / 60.0f);
+        float secs = seconds - (mins * 60.0f);
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%d:%06.3f", mins, secs);
+        return std::string(buf);
+    }
+
+    void lap_history_widget(config::AppConfig& config)
+    {
+        LapHistory::get().update();   // restored — only call needed here now
+
+        ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | 
+                                        ImGuiWindowFlags_NoScrollbar | 
+                                        ImGuiWindowFlags_NoScrollWithMouse;
+
+        ImGui::SetNextWindowBgAlpha(config.opacity);
+        ImGui::SetNextWindowSize(ImVec2(240, 220), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(180, 120), ImVec2(600, 500));
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        if (ImGui::Begin("Lap History HUD", nullptr, window_flags))
+        {
+            std::vector<LapRecord> laps = LapHistory::get().recent_laps(config.lap_history_count);
+
+            // calculate baseline
+            float reference_time = 0.0f;
+            if (!laps.empty()) 
+            {
+                if (config.lap_history_delta_session) 
+                    reference_time = laps.empty() ? 0.0f : LapHistory::get().session_best_lap(laps[0].session_number);
+                else 
+                    reference_time = LapHistory::get().all_time_best_lap();
+            }
+
+            float old_font_scale = ImGui::GetFont()->Scale;
+            ImGui::GetFont()->Scale *= std::clamp(config.lap_history_font_scale, 0.5f, 3.0f);
+            ImGui::PushFont(ImGui::GetFont());
+
+            ImGuiTableFlags table_flags = ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Borders |
+                                        ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp; //ImGuiTableFlags_NoBordersInBody
+
+            if (ImGui::BeginTable("LapHistoryTable", 3, table_flags))
+            {
+                ImGui::TableSetupColumn("Lap", ImGuiTableColumnFlags_WidthFixed, 35.0f * config.lap_history_font_scale);
+                ImGui::TableSetupColumn("Time", ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableSetupColumn("Delta", ImGuiTableColumnFlags_WidthFixed, 55.0f * config.lap_history_font_scale);
+                ImGui::TableHeadersRow();
+
+                for (size_t i = 0; i < laps.size(); ++i)
+                {
+                    const auto& lap = laps[i];
+                    ImGui::TableNextRow();
+
+                    bool is_best = (reference_time > 0.0f && std::abs(lap.lap_time - reference_time) < 0.001f);
+
+                    ImVec4 row_col = is_best ? ImVec4(config.time_fucsia_color[0], config.time_fucsia_color[1], config.time_fucsia_color[2], config.time_fucsia_color[3]) 
+                                             : ImVec4(config.lap_history_font_color[0], config.lap_history_font_color[1], config.lap_history_font_color[2], config.lap_history_font_color[3]);
+                    
+                    ImGui::PushStyleColor(ImGuiCol_Text, row_col);
+
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text("%d", lap.lap_number);
+
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::Text("%s", format_lap_time(lap.lap_time).c_str());
+
+                    ImGui::TableSetColumnIndex(2);
+                    bool in_active_session = !config.lap_history_delta_session || (lap.session_number == laps[0].session_number);
+                    if (!in_active_session)
+                    {
+                        ImGui::Text("--");
+                    }
+                    else if (is_best)
+                    {
+                        ImGui::Text("0.000"); 
+                    }
+                    else if (reference_time > 0.0f)
+                    {
+                        float delta = lap.lap_time - reference_time;
+                        char delta_buf[32];
+
+                        ImVec4 delta_col;
+                        if (delta <= 0.0f)
+                            delta_col = ImVec4(config.time_green_color[0], config.time_green_color[1], config.time_green_color[2], config.time_green_color[3]);
+                        else if (delta < 1.0f)
+                            delta_col = ImVec4(config.time_yellow_color[0], config.time_yellow_color[1], config.time_yellow_color[2], config.time_yellow_color[3]);
+                        else
+                            delta_col = ImVec4(config.time_red_color[0], config.time_red_color[1], config.time_red_color[2], config.time_red_color[3]);
+
+                        snprintf(delta_buf, sizeof(delta_buf), "%s%.3f", (delta > 0.0f ? "+" : "-"), std::abs(delta));
+
+                        ImGui::PushStyleColor(ImGuiCol_Text, delta_col);
+                        ImGui::Text("%s", delta_buf);
+                        ImGui::PopStyleColor(); 
+                    }
+                    else
+                    {
+                        ImGui::Text("--");
+                    }
+                    
+                    ImGui::PopStyleColor(); 
+                }
+                ImGui::EndTable();
+            }
+            ImGui::PopFont();
+            ImGui::GetFont()->Scale = old_font_scale;
+        }
+        ImGui::End();
+        ImGui::PopStyleVar();
+    }
+
+    inline void lap_history_settings_panel(bool* p_open, config::AppConfig& config)
+    {
+        if (ImGui::Begin("Lap History Settings", p_open, 0))
+        {
+            ImGui::SetWindowSize(ImVec2(280, 220), ImGuiCond_FirstUseEver);
+
+            ImGui::Text("Lap History Options");
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            ImGui::Text("Delta Reference Base:");
+            if (ImGui::RadioButton("Entire File (All-Time Best)", !config.lap_history_delta_session))
+                config.lap_history_delta_session = false;
+            if (ImGui::RadioButton("Current Session Only", config.lap_history_delta_session))
+                config.lap_history_delta_session = true;
+
+            ImGui::Spacing();
+            ImGui::SliderInt("Laps to Show", &config.lap_history_count, 1, 30);
+
+            ImGui::Spacing();
+            ImGui::Text("Text");
+            ImGui::SliderFloat("Font Scale", &config.lap_history_font_scale, 0.5f, 2.5f, "%.1fx");
+            ImGui::ColorEdit4("Font Color", config.lap_history_font_color);
+
+            ImGui::Separator();
+            ImGui::Spacing();
+            if (ImGui::Button("Reset Defaults"))
+            {
+                config.lap_history_count = 10;
+                config.lap_history_delta_session = false;
+                config.lap_history_font_color[0] = 1.0f;
+                config.lap_history_font_color[1] = 1.0f;
+                config.lap_history_font_color[2] = 1.0f;
+                config.lap_history_font_color[3] = 1.0f;
+            }
+        }
+        ImGui::End();
+    }
 
 };
 

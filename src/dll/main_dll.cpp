@@ -16,6 +16,7 @@
 #include <shared/widgets.h>
 #include <shared/texture_loader.h>
 #include <dll/lmu_telemetry.h>
+#include <dll/lap_history.h>
 #include <MinHook.h>
 
 WNDPROC o_WndProc = nullptr;
@@ -104,6 +105,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* p_SwapChain, UINT SyncInterval, UINT
 
     // pull telemetry data from LMU memory map 
     LMUTelemetry::get().update();
+    LapHistory::get().update();
 
     // start ImGui Frame
     ImGui_ImplDX11_NewFrame();
@@ -115,6 +117,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* p_SwapChain, UINT SyncInterval, UINT
     if (config.show_delta)  widgets::delta_widget(config);
     if (config.show_gear)  widgets::gear_widget(config);
     if (config.show_wheel)  widgets::wheel_widget(config);
+    if (config.show_lap_history)  widgets::lap_history_widget(config);
 
     // render ImGui drawing data onto LMU's backbuffer
     ImGui::Render();
@@ -225,6 +228,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     {
     case DLL_PROCESS_ATTACH:
         g_hModule = hModule; // captures the DLL's module path correctly!
+        LapHistory::get().set_module(hModule);
         DisableThreadLibraryCalls(hModule);
         CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)MainThread, hModule, 0, nullptr);
         break;

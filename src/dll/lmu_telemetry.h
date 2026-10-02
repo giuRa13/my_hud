@@ -51,6 +51,22 @@ public:
             m_Valid = false;
         }
 
+        // scoring section: per-vehicle lap/sector info, needed for lap history + last-lap delta
+        const SharedMemoryScoringData& s = p_Layout->data.scoring;
+        m_ScoreValid = false;
+        long n = (std::min)((long)s.scoringInfo.mNumVehicles, (long)104);
+        for (long i = 0; i < n; ++i)
+        {
+            if (s.vehScoringInfo[i].mIsPlayer)
+            {
+                m_LapDist    = (float)s.vehScoringInfo[i].mLapDist;
+                m_TrackLen   = (float)s.scoringInfo.mLapDist;
+                m_ScoreVeh   = s.vehScoringInfo[i];
+                m_ScoreValid = true;
+                break;
+            }
+        }
+
         lock->Unlock();
     }
 
@@ -60,6 +76,7 @@ public:
         if (h_MapFile) { CloseHandle(h_MapFile); h_MapFile = nullptr; }
         lock.reset();       // closes the lock handles; update() recreates it when needed
         m_Valid = false;    // never serve stale data after a shutdown
+        m_ScoreValid = false;
     }
 
     float get_throttle() { return m_Valid ? (float)m_Telem.mUnfilteredThrottle : 0.0f; }
@@ -92,12 +109,36 @@ public:
         return r;
     }
 
+    long   get_lap_number()      { return m_Valid ? m_Telem.mLapNumber : -1; }
+    double get_lap_start_et()    { return m_Valid ? m_Telem.mLapStartET : 0.0; }
+    bool   get_lap_invalidated() { return m_Valid ? m_Telem.mLapInvalidated : true; }
+    float  get_cur_sector1()     { return m_ScoreValid ? (float)m_ScoreVeh.mCurSector1 : -1.0f; } // not used now
+    float  get_cur_sector2()     { return m_ScoreValid ? (float)m_ScoreVeh.mCurSector2 : -1.0f; } // not used now
+    long   get_current_sector_raw() { return m_Valid ? m_Telem.mCurrentSector : -1; }
+    double get_elapsed_time()       { return m_Valid ? m_Telem.mElapsedTime : 0.0; }
+
+    std::string get_track_name()     { return m_Valid ? std::string(m_Telem.mTrackName) : ""; }
+    std::string get_vehicle_class()  { return m_ScoreValid ? std::string(m_ScoreVeh.mVehicleClass) : ""; }
+    float get_last_sector1()         { return m_ScoreValid ? (float)m_ScoreVeh.mLastSector1 : -1.0f; }
+    float get_last_sector2()         { return m_ScoreValid ? (float)m_ScoreVeh.mLastSector2 : -1.0f; }
+    float get_last_lap_time()        { return m_ScoreValid ? (float)m_ScoreVeh.mLastLapTime : -1.0f; }
+    bool  get_in_pits()               { return m_ScoreValid ? m_ScoreVeh.mInPits : true; }
+    unsigned char get_count_lap_flag(){ return m_ScoreValid ? m_ScoreVeh.mCountLapFlag : 0; }
+
+    float get_lap_dist()   { return m_ScoreValid ? m_LapDist  : 0.0f; }
+    float get_track_len()  { return m_ScoreValid ? m_TrackLen : 0.0f; }
+
 private:
     HANDLE h_MapFile = nullptr;
     SharedMemoryLayout* p_Layout = nullptr;
     std::optional<SharedMemoryLock> lock;
     TelemInfoV01 m_Telem{};
     bool m_Valid = false;
+
+    VehicleScoringInfoV01 m_ScoreVeh{};
+    bool  m_ScoreValid = false;
+    float m_LapDist = 0.0f;
+    float m_TrackLen = 0.0f;
 };
 
 #endif

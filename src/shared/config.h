@@ -19,9 +19,16 @@ namespace config
         float accent_b = 1.0f;
         float accent_a = 1.0f;
 
+        float time_fucsia_color[4] = { 0.956f, 0.043f, 0.941f, 1.0f };   
+        float time_green_color[4] = { 0.02f, 0.9f, 0.0f, 1.0f };
+        float time_yellow_color[4] = { 0.925f, 0.643f, 0.047f, 1.0f };
+        float time_red_color[4] = { 0.898f, 0.133f, 0.286f, 1.0f };
+
         bool show_pedals = true;
         bool show_delta = false;
         bool show_gear = true;
+        bool show_wheel = true;
+        bool show_lap_history = true;
 
         // pedals settings
         bool pedals_horizontal = false; // false = vertical (default), true = horizontal
@@ -35,20 +42,28 @@ namespace config
         float ffb_color[4]      = { 0.925f, 0.643f, 0.047f, 1.0f }; // Default Orange/Yellow
         
         // gear settings
-        float gear_bg_redline_color[4]  = { 1.0f,  0.118f, 0.267f, 1.0f }; // #FF1E44 (0.91 threshold)
+        bool gear_font_bold = false;
+        float gear_bg_redline_color[4]  = { 1.0f,  0.118f, 0.267f, 1.0f }; // #FF1E44 (0.91 threshold) 
         float gear_bg_optimal_color[4]  = { 0.0f,  0.667f, 1.0f,   1.0f }; // #00AAFF (0.95 threshold)
         float gear_bg_overrev_color[4]  = { 1.0f,  0.0f,   1.0f,   1.0f }; // #FF00FF (0.98 threshold)
+        float gear_battery_color[4]  = { 0.0f, 0.815f, 1.0f, 1.0f }; // #00d0ff #ed6689         
 
         // delta settings
         bool delta_use_all_time_best = true; // true = All Time Best (default), false = Last Lap
+        bool delta_font_bold = false;
         float delta_font_scale = 1.0f;
         float delta_negative_color[4] = { 0.02f, 0.9f, 0.0f, 1.0f }; // Default Green
         float delta_positive_color[4]    = { 0.898f, 0.133f, 0.286f, 1.0f }; // Default Red
 
         // wheels settings
-        bool show_wheel = true;
         std::string wheel_image_path; // empty = use the built-in default
         float wheel_rotation_multiplier = 1.0f;
+
+        // lap history settings
+        int lap_history_count = 10;
+        bool lap_history_delta_session = false; // false = entire file (all-time), true = current session
+        float lap_history_font_scale = 1.0f;
+        float lap_history_font_color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
     };
 
     // gets the directory where the EXE or DLL is running
@@ -78,9 +93,28 @@ namespace config
             file << "accent_b=" << config.accent_b << "\n";
             file << "accent_a=" << config.accent_a << "\n";
             //
+            file << "time_fucsia_color_r=" << config.time_fucsia_color[0] << "\n";
+            file << "time_fucsia_color_g=" << config.time_fucsia_color[1] << "\n";
+            file << "time_fucsia_color_b=" << config.time_fucsia_color[2] << "\n";
+            file << "time_fucsia_color_a=" << config.time_fucsia_color[3] << "\n";
+            file << "time_green_color_r=" << config.time_green_color[0] << "\n";
+            file << "time_green_color_g=" << config.time_green_color[1] << "\n";
+            file << "time_green_color_b=" << config.time_green_color[2] << "\n";
+            file << "time_green_color_a=" << config.time_green_color[3] << "\n";
+            file << "time_yellow_color_r=" << config.time_yellow_color[0] << "\n";
+            file << "time_yellow_color_g=" << config.time_yellow_color[1] << "\n";
+            file << "time_yellow_color_b=" << config.time_yellow_color[2] << "\n";
+            file << "time_yellow_color_a=" << config.time_yellow_color[3] << "\n";
+            file << "time_red_color_r=" << config.time_red_color[0] << "\n";
+            file << "time_red_color_g=" << config.time_red_color[1] << "\n";
+            file << "time_red_color_b=" << config.time_red_color[2] << "\n";
+            file << "time_red_color_a=" << config.time_red_color[3] << "\n";
+            //
             file << "show_pedals=" << (config.show_pedals ? 1 : 0) << "\n";
             file << "show_delta=" << (config.show_delta ? 1 : 0) << "\n";
             file << "show_gear=" << (config.show_gear ? 1 : 0) << "\n";
+            file << "show_wheel=" << (config.show_wheel ? 1 : 0) << "\n";
+            file << "show_lap_history=" << (config.show_lap_history ? 1 : 0) << "\n";
             //
             file << "pedals_horizontal=" << (config.pedals_horizontal ? 1 : 0) << "\n";
             file << "show_throttle=" << (config.show_throttle ? 1 : 0) << "\n";
@@ -104,6 +138,7 @@ namespace config
             file << "ffb_b=" << config.ffb_color[2] << "\n";
             file << "ffb_a=" << config.ffb_color[3] << "\n";
             //
+            file << "gear_font_bold=" << (config.gear_font_bold ? 1 : 0) << "\n";
             file << "gear_bg_redline_r=" << config.gear_bg_redline_color[0] << "\n";
             file << "gear_bg_redline_g=" << config.gear_bg_redline_color[1] << "\n";
             file << "gear_bg_redline_b=" << config.gear_bg_redline_color[2] << "\n";
@@ -116,8 +151,13 @@ namespace config
             file << "gear_bg_overrev_g=" << config.gear_bg_overrev_color[1] << "\n";
             file << "gear_bg_overrev_b=" << config.gear_bg_overrev_color[2] << "\n";
             file << "gear_bg_overrev_a=" << config.gear_bg_overrev_color[3] << "\n";
+            file << "gear_battery_color_r=" << config.gear_battery_color[0] << "\n";
+            file << "gear_battery_color_g=" << config.gear_battery_color[1] << "\n";
+            file << "gear_battery_color_b=" << config.gear_battery_color[2] << "\n";
+            file << "gear_battery_color-a=" << config.gear_battery_color[3] << "\n";
             //
             file << "delta_use_all_time_best=" << (config.delta_use_all_time_best ? 1 : 0) << "\n";
+            file << "delta_font_bold=" << (config.delta_font_bold ? 1 : 0) << "\n";
             file << "delta_font_scale=" << config.delta_font_scale << "\n";
             file << "delta_negative_r=" << config.delta_negative_color[0] << "\n";
             file << "delta_negative_g=" << config.delta_negative_color[1] << "\n";
@@ -128,9 +168,16 @@ namespace config
             file << "delta_positive_b=" << config.delta_positive_color[2] << "\n";
             file << "delta_posituve_a=" << config.delta_positive_color[3] << "\n";
             //
-            file << "show_wheel=" << (config.show_wheel ? 1 : 0) << "\n";
             file << "wheel_image_path=" << config.wheel_image_path << "\n";
             file << "wheel_rotation_multiplier=" << config.wheel_rotation_multiplier << "\n";
+            //
+            file << "lap_history_count=" << config.lap_history_count << "\n";
+            file << "lap_history_delta_session=" << (config.lap_history_delta_session ? 1 : 0) << "\n";
+            file << "lap_history_font_scale=" << config.lap_history_font_scale << "\n";
+            file << "lap_history_font_r=" << config.lap_history_font_color[0] << "\n";
+            file << "lap_history_font_g=" << config.lap_history_font_color[1] << "\n";
+            file << "lap_history_font_b=" << config.lap_history_font_color[2] << "\n";
+            file << "lap_history_font_a=" << config.lap_history_font_color[3] << "\n";
 
             file.close();
         }
@@ -163,10 +210,29 @@ namespace config
                     else if (key == "accent_g") config.accent_g = std::stof(val_str);
                     else if (key == "accent_b") config.accent_b = std::stof(val_str);
                     else if (key == "accent_a") config.accent_a = std::stof(val_str);
-                    
+
+                    else if (key == "time_fucsia_color_r=") config.time_fucsia_color[0] = std::stof(val_str);
+                    else if (key == "time_fucsia_color_g=") config.time_fucsia_color[1] = std::stof(val_str);
+                    else if (key == "time_fucsia_color_b=") config.time_fucsia_color[2] = std::stof(val_str);
+                    else if (key == "time_fucsia_color_a=") config.time_fucsia_color[3] = std::stof(val_str);
+                    else if (key == "time_green_color_r=") config.time_green_color[0] = std::stof(val_str);
+                    else if (key == "time_green_color_g=") config.time_green_color[1] = std::stof(val_str);
+                    else if (key == "time_green_color_b=") config.time_green_color[2] = std::stof(val_str);
+                    else if (key == "time_green_color_a=") config.time_green_color[3] = std::stof(val_str);
+                    else if (key == "time_yellow_color_r=") config.time_yellow_color[0] = std::stof(val_str);
+                    else if (key == "time_yellow_color_g=") config.time_yellow_color[1] = std::stof(val_str);
+                    else if (key == "time_yellow_color_b=") config.time_yellow_color[2] = std::stof(val_str);
+                    else if (key == "time_yellow_color_a=") config.time_yellow_color[3] = std::stof(val_str);
+                    else if (key == "time_red_color_r=") config.time_red_color[0] = std::stof(val_str);
+                    else if (key == "time_red_color_g=") config.time_red_color[1] = std::stof(val_str);
+                    else if (key == "time_red_color_b=") config.time_red_color[2] = std::stof(val_str);
+                    else if (key == "time_red_color_a=") config.time_red_color[3] = std::stof(val_str);
+
                     else if (key == "show_pedals") config.show_pedals = (std::stoi(val_str) != 0);
                     else if (key == "show_delta") config.show_delta = (std::stoi(val_str) != 0);
                     else if (key == "show_gear") config.show_gear = (std::stoi(val_str) != 0);
+                    else if (key == "show_wheel") config.show_wheel = (std::stoi(val_str) != 0);
+                    else if (key == "show_lap_history") config.show_lap_history = (std::stoi(val_str) != 0);
                 
                     else if (key == "pedals_horizontal") config.pedals_horizontal = (std::stoi(val_str) != 0);
                     else if (key == "show_throttle") config.show_throttle = (std::stoi(val_str) != 0);
@@ -190,6 +256,7 @@ namespace config
                     else if (key == "ffb_b") config.ffb_color[2] = std::stof(val_str);
                     else if (key == "ffb_a") config.ffb_color[3] = std::stof(val_str);
 
+                    else if (key == "gear_font_bold") config.gear_font_bold = (std::stoi(val_str) != 0);
                     else if (key == "gear_bg_redline_r") config.gear_bg_redline_color[0] = std::stof(val_str);
                     else if (key == "gear_bg_redline_g") config.gear_bg_redline_color[1] = std::stof(val_str);
                     else if (key == "gear_bg_redline_b") config.gear_bg_redline_color[2] = std::stof(val_str);
@@ -202,8 +269,13 @@ namespace config
                     else if (key == "gear_bg_overrev_g") config.gear_bg_overrev_color[1] = std::stof(val_str);
                     else if (key == "gear_bg_overrev_b") config.gear_bg_overrev_color[2] = std::stof(val_str);
                     else if (key == "gear_bg_overrev_a") config.gear_bg_overrev_color[3] = std::stof(val_str);
+                    else if (key == "gear_battery_color_r") config.gear_battery_color[0] = std::stof(val_str);
+                    else if (key == "gear_battery_color_g") config.gear_battery_color[1] = std::stof(val_str);
+                    else if (key == "gear_battery_color_b") config.gear_battery_color[2] = std::stof(val_str);
+                    else if (key == "gear_battery_color_a") config.gear_battery_color[3] = std::stof(val_str);
 
                     else if (key == "delta_use_all_time_best") config.delta_use_all_time_best = (std::stoi(val_str) != 0);
+                    else if (key == "delta_font_bold") config.delta_font_bold = (std::stoi(val_str) != 0);
                     else if (key == "delta_font_scale") config.delta_font_scale = std::stof(val_str);
                     else if (key == "delta_negative_r") config.delta_negative_color[0] = std::stof(val_str);
                     else if (key == "delta_negative_g") config.delta_negative_color[1] = std::stof(val_str);
@@ -214,9 +286,16 @@ namespace config
                     else if (key == "delta_positive_b") config.delta_positive_color[2] = std::stof(val_str);
                     else if (key == "delta_positive_a") config.delta_positive_color[3] = std::stof(val_str);
 
-                    else if (key == "show_wheel") config.show_wheel = (std::stoi(val_str) != 0);
                     else if (key == "wheel_image_path") config.wheel_image_path = val_str; // no std::stoi/std::stof needed since it's not numeric
                     else if (key == "wheel_rotation_multiplier") config.wheel_rotation_multiplier = std::stof(val_str);
+
+                    else if (key == "lap_history_count") config.lap_history_count = std::stoi(val_str);
+                    else if (key == "lap_history_delta_session") config.lap_history_delta_session = (std::stoi(val_str) != 0);
+                    else if (key == "lap_history_font_scale") config.lap_history_font_scale = std::stof(val_str);
+                    else if (key == "lap_history_font_r") config.lap_history_font_color[0] = std::stof(val_str);
+                    else if (key == "lap_history_font_g") config.lap_history_font_color[1] = std::stof(val_str);
+                    else if (key == "lap_history_font_b") config.lap_history_font_color[2] = std::stof(val_str);
+                    else if (key == "lap_history_font_a") config.lap_history_font_color[3] = std::stof(val_str);
                 }
             }
         }

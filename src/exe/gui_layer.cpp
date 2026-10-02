@@ -22,19 +22,8 @@ void Gui_Layer::init(HWND hwnd, LPDIRECT3DDEVICE9 g_pd3dDevice)
     accent_color = ImVec4(config.accent_r, config.accent_g, config.accent_b, config.accent_a);
     set_theme();
 
-    /*ImGuiStyle& style = ImGui::GetStyle();
-    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-    {
-        style.WindowRounding = 0.0f;
-        style.Colors[ImGuiCol_WindowBg].w = opacity;
-    }*/
-
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX9_Init(g_pd3dDevice);
-
-    // - AddFontDefault() '"'is '"'common, but if you want ForkAwesome or custom fonts, load them here.
-    // io.Fonts->AddFontDefault();
-    // io.Fonts->AddFontFromFileTTF("your_font.ttf", 18.0f);
 }
 
 void Gui_Layer::begin()
@@ -124,7 +113,6 @@ void Gui_Layer::draw_widgets()
             config.accent_a = accent_color.w;
             apply_accent_color();
         }
-
         if (ImGui::Button("Default Color")) 
         {
             ImGui::StyleColorsDark();
@@ -135,6 +123,22 @@ void Gui_Layer::draw_widgets()
             config.accent_a = accent_color.w;
         }
 
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        ImGui::Separator();
+        ImGui::Text("Global Time Colors");
+        ImGui::ColorEdit4("Fuchsia (Best)", config.time_fucsia_color);
+        ImGui::ColorEdit4("Green (Faster)", config.time_green_color);
+        ImGui::ColorEdit4("Yellow (Slower)", config.time_yellow_color);
+        ImGui::ColorEdit4("Red (Slower)", config.time_red_color);
+        if (ImGui::Button("Reset Defaults"))
+        {
+            config.time_fucsia_color[0] = 0.956f; config.time_fucsia_color[1] = 0.043f; config.time_fucsia_color[2] = 0.941f; config.time_fucsia_color[3] = 1.0f;
+            config.time_green_color[0] = 0.02f; config.time_green_color[1] = 0.9f; config.time_green_color[2] = 0.0f; config.time_green_color[3] = 1.0f;
+            config.time_yellow_color[0] = 0.925f; config.time_yellow_color[1] = 0.643f; config.time_yellow_color[2] = 0.047f; config.time_yellow_color[3] = 1.0f;  
+            config.time_red_color[0] = 0.898f; config.time_red_color[1] = 0.133f; config.time_red_color[2] = 0.286f; config.time_red_color[3] = 1.0f;
+        }
         ImGui::Separator();
         ImGui::Spacing();
 
@@ -161,6 +165,12 @@ void Gui_Layer::draw_widgets()
         ImGui::SameLine();
         if (ImGui::Button("Config##Wheel"))
             show_wheel_settings = !show_wheel_settings;
+
+        // lap history //////////////////////////////////////////////////////////
+        ImGui::Checkbox("Lap History", &config.show_lap_history); 
+        ImGui::SameLine();
+        if (ImGui::Button("Config##LapHistory")) 
+            show_lap_history_settings = !show_lap_history_settings;
 
         ImGui::Separator();
         ImGui::Spacing();
@@ -203,6 +213,7 @@ void Gui_Layer::draw_widgets()
         if (config.show_delta) widgets::delta_widget(config);
         if (config.show_gear) widgets::gear_widget(config);
         if (config.show_wheel)  widgets::wheel_widget(config);
+        if (config.show_lap_history)  widgets::lap_history_widget(config);
     }
 
     // settings //////////////////////////////////////////////////////////
@@ -210,6 +221,7 @@ void Gui_Layer::draw_widgets()
     if (show_delta_settings) widgets::delta_settings_panel(&show_delta_settings, config);
     if (show_gear_settings) widgets::gear_settings_panel(&show_gear_settings, config);
     if (show_wheel_settings)  widgets::wheel_settings_panel(&show_wheel_settings, config);
+    if (show_lap_history_settings) widgets::lap_history_settings_panel(&show_lap_history_settings, config);
 }
 
 void Gui_Layer::set_theme()
