@@ -122,11 +122,9 @@ void Gui_Layer::draw_widgets()
             config.accent_b = accent_color.z;
             config.accent_a = accent_color.w;
         }
-
         ImGui::Separator();
         ImGui::Spacing();
 
-        ImGui::Separator();
         ImGui::Text("Global Time Colors");
         ImGui::ColorEdit4("Fuchsia (Best)", config.time_fucsia_color);
         ImGui::ColorEdit4("Green (Faster)", config.time_green_color);
@@ -172,6 +170,12 @@ void Gui_Layer::draw_widgets()
         if (ImGui::Button("Config##LapHistory")) 
             show_lap_history_settings = !show_lap_history_settings;
 
+        // sectors //////////////////////////////////////////////////////////
+        ImGui::Checkbox("Sectors", &config.show_lap_history); 
+        ImGui::SameLine();
+        if (ImGui::Button("Config##Sectors")) 
+            show_sectors_settings = !show_sectors_settings;
+
         ImGui::Separator();
         ImGui::Spacing();
 
@@ -214,6 +218,7 @@ void Gui_Layer::draw_widgets()
         if (config.show_gear) widgets::gear_widget(config);
         if (config.show_wheel)  widgets::wheel_widget(config);
         if (config.show_lap_history)  widgets::lap_history_widget(config);
+        if (config.show_sectors)  widgets::sectors_widget(config);
     }
 
     // settings //////////////////////////////////////////////////////////
@@ -222,6 +227,7 @@ void Gui_Layer::draw_widgets()
     if (show_gear_settings) widgets::gear_settings_panel(&show_gear_settings, config);
     if (show_wheel_settings)  widgets::wheel_settings_panel(&show_wheel_settings, config);
     if (show_lap_history_settings) widgets::lap_history_settings_panel(&show_lap_history_settings, config);
+    if (show_sectors_settings) widgets::sectors_settings_panel(&show_sectors_settings, config);
 }
 
 void Gui_Layer::set_theme()

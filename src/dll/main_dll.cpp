@@ -96,16 +96,18 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* p_SwapChain, UINT SyncInterval, UINT
         }
     }
 
+    // pull telemetry + tracker state every frame, regardless of whether the overlay is shown —
+    // this keeps lap/sector tracking continuous even while the HUD is toggled off
+    LMUTelemetry::get().update();
+    LapHistory::get().update();
+    SectorTracker::get().update();
+
     // overlay off: release the shared memory handles and skip rendering
     if (!config.enable_overlay) 
     {
-        LMUTelemetry::get().shutdown(); // cheap, only null checks when already closed
+        //LMUTelemetry::get().shutdown(); // cheap, only null checks when already closed
         return o_Present(p_SwapChain, SyncInterval, Flags);
     }
-
-    // pull telemetry data from LMU memory map 
-    LMUTelemetry::get().update();
-    LapHistory::get().update();
 
     // start ImGui Frame
     ImGui_ImplDX11_NewFrame();
@@ -118,6 +120,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* p_SwapChain, UINT SyncInterval, UINT
     if (config.show_gear)  widgets::gear_widget(config);
     if (config.show_wheel)  widgets::wheel_widget(config);
     if (config.show_lap_history)  widgets::lap_history_widget(config);
+    if (config.show_sectors)  widgets::sectors_widget(config);
 
     // render ImGui drawing data onto LMU's backbuffer
     ImGui::Render();
@@ -227,7 +230,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     switch (ul_reason_for_call)
     {
     case DLL_PROCESS_ATTACH:
-        g_hModule = hModule; // captures the DLL's module path correctly!
+        g_hModule = hModule; // captures the DLL's module path correctly
         LapHistory::get().set_module(hModule);
         DisableThreadLibraryCalls(hModule);
         CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)MainThread, hModule, 0, nullptr);

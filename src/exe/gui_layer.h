@@ -38,6 +38,7 @@ private:
     bool show_gear_settings = false;
     bool show_wheel_settings = false;
     bool show_lap_history_settings = false;
+    bool show_sectors_settings = false;
 };
 
 #endif

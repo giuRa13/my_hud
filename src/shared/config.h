@@ -25,10 +25,11 @@ namespace config
         float time_red_color[4] = { 0.898f, 0.133f, 0.286f, 1.0f };
 
         bool show_pedals = true;
-        bool show_delta = false;
+        bool show_delta = true;
         bool show_gear = true;
         bool show_wheel = true;
         bool show_lap_history = true;
+        bool show_sectors = true;
 
         // pedals settings
         bool pedals_horizontal = false; // false = vertical (default), true = horizontal
@@ -54,6 +55,7 @@ namespace config
         float delta_font_scale = 1.0f;
         float delta_negative_color[4] = { 0.02f, 0.9f, 0.0f, 1.0f }; // Default Green
         float delta_positive_color[4]    = { 0.898f, 0.133f, 0.286f, 1.0f }; // Default Red
+        float delta_smoothing = 0.15f; /// TESTING ///
 
         // wheels settings
         std::string wheel_image_path; // empty = use the built-in default
@@ -64,6 +66,15 @@ namespace config
         bool lap_history_delta_session = false; // false = entire file (all-time), true = current session
         float lap_history_font_scale = 1.0f;
         float lap_history_font_color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+        // sectors settings
+        bool sector_time_mode = false; // false = delta vs all-time best, true = absolute sector time
+        bool  sector_font_bold = false;
+        float sector_font_scale = 1.0f;
+        bool sector_show_current   = true;
+        bool sector_show_potential = true;
+        bool sector_show_optimal   = false;
+        bool sector_show_last      = false;
     };
 
     // gets the directory where the EXE or DLL is running
@@ -115,6 +126,7 @@ namespace config
             file << "show_gear=" << (config.show_gear ? 1 : 0) << "\n";
             file << "show_wheel=" << (config.show_wheel ? 1 : 0) << "\n";
             file << "show_lap_history=" << (config.show_lap_history ? 1 : 0) << "\n";
+            file << "show_sectors=" << (config.show_sectors ? 1 : 0) << "\n";
             //
             file << "pedals_horizontal=" << (config.pedals_horizontal ? 1 : 0) << "\n";
             file << "show_throttle=" << (config.show_throttle ? 1 : 0) << "\n";
@@ -167,6 +179,7 @@ namespace config
             file << "delta_positive_g=" << config.delta_positive_color[1] << "\n";
             file << "delta_positive_b=" << config.delta_positive_color[2] << "\n";
             file << "delta_posituve_a=" << config.delta_positive_color[3] << "\n";
+            file << "delta_smoothing=" << config.delta_smoothing << "\n";
             //
             file << "wheel_image_path=" << config.wheel_image_path << "\n";
             file << "wheel_rotation_multiplier=" << config.wheel_rotation_multiplier << "\n";
@@ -178,6 +191,14 @@ namespace config
             file << "lap_history_font_g=" << config.lap_history_font_color[1] << "\n";
             file << "lap_history_font_b=" << config.lap_history_font_color[2] << "\n";
             file << "lap_history_font_a=" << config.lap_history_font_color[3] << "\n";
+            //
+            file << "sector_time_mode=" << (config.sector_time_mode ? 1 : 0) << "\n";
+            file << "sector_font_bold=" << (config.sector_font_bold ? 1 : 0) << "\n";
+            file << "sector_font_scale=" << config.sector_font_scale << "\n";
+            file << "sector_show_current=" << (config.sector_show_current ? 1 : 0) << "\n";
+            file << "sector_show_potential=" << (config.sector_show_potential ? 1 : 0) << "\n";
+            file << "sector_show_optimal=" << (config.sector_show_optimal ? 1 : 0) << "\n";
+            file << "sector_show_last=" << (config.sector_show_last ? 1 : 0) << "\n";
 
             file.close();
         }
@@ -233,6 +254,7 @@ namespace config
                     else if (key == "show_gear") config.show_gear = (std::stoi(val_str) != 0);
                     else if (key == "show_wheel") config.show_wheel = (std::stoi(val_str) != 0);
                     else if (key == "show_lap_history") config.show_lap_history = (std::stoi(val_str) != 0);
+                    else if (key == "show_sectors") config.show_sectors = (std::stoi(val_str) != 0);
                 
                     else if (key == "pedals_horizontal") config.pedals_horizontal = (std::stoi(val_str) != 0);
                     else if (key == "show_throttle") config.show_throttle = (std::stoi(val_str) != 0);
@@ -288,6 +310,7 @@ namespace config
 
                     else if (key == "wheel_image_path") config.wheel_image_path = val_str; // no std::stoi/std::stof needed since it's not numeric
                     else if (key == "wheel_rotation_multiplier") config.wheel_rotation_multiplier = std::stof(val_str);
+                    else if (key == "delta_smoothing") config.delta_smoothing = std::stof(val_str);
 
                     else if (key == "lap_history_count") config.lap_history_count = std::stoi(val_str);
                     else if (key == "lap_history_delta_session") config.lap_history_delta_session = (std::stoi(val_str) != 0);
@@ -296,6 +319,14 @@ namespace config
                     else if (key == "lap_history_font_g") config.lap_history_font_color[1] = std::stof(val_str);
                     else if (key == "lap_history_font_b") config.lap_history_font_color[2] = std::stof(val_str);
                     else if (key == "lap_history_font_a") config.lap_history_font_color[3] = std::stof(val_str);
+
+                    else if (key == "sector_time_mode") config.sector_time_mode = (std::stoi(val_str) != 0);
+                    else if (key == "sector_font_bold") config.sector_font_bold = (std::stoi(val_str) != 0);
+                    else if (key == "sector_font_scale") config.sector_font_scale = std::stof(val_str);
+                    else if (key == "sector_show_current") config.sector_show_current = (std::stoi(val_str) != 0);
+                    else if (key == "sector_show_potential") config.sector_show_potential = (std::stoi(val_str) != 0);
+                    else if (key == "sector_show_optimal") config.sector_show_optimal = (std::stoi(val_str) != 0);
+                    else if (key == "sector_show_last") config.sector_show_last = (std::stoi(val_str) != 0);
                 }
             }
         }

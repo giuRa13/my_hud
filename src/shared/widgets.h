@@ -80,6 +80,7 @@ namespace widgets
     }
 
     // pedals widget ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     void pedals_widget(config::AppConfig config)
     {
         float throttle = 0.0f;
@@ -164,6 +165,7 @@ namespace widgets
     }
 
     // gear widget ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     void gear_widget(config::AppConfig& config) 
     {
         std::string gear_str;
@@ -340,7 +342,7 @@ namespace widgets
                 ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
                 // background box
-                draw_list->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), ImGui::GetColorU32(ImVec4(0.15f, 0.15f, 0.18f, 1.0f)), 0.0f);
+                draw_list->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), ImGui::GetColorU32(ImVec4(0.117f, 0.117f, 0.137f, 1.0f)), 0.0f);
                 
                 // fill fraction (if has battery)
                 if (has_battery && battery_pct > 0.0f) 
@@ -379,7 +381,7 @@ namespace widgets
                 ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
                 // background box
-                draw_list->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), ImGui::GetColorU32(ImVec4(0.15f, 0.15f, 0.18f, 1.0f)), 0.0f);
+                draw_list->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), ImGui::GetColorU32(ImVec4(0.117f, 0.117f, 0.137f, 1.0f)), 0.0f);
                     
                 // fill fraction
                 if (rpm_pct > 0.0f) 
@@ -444,6 +446,7 @@ namespace widgets
     }
 
     // delta widget ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     void delta_widget(config::AppConfig config)
     {
         float delta_val = 0.0f;
@@ -452,11 +455,51 @@ namespace widgets
         delta_val = -0.342f; 
 #else
         LMUTelemetry::get().update();
-        delta_val = LMUTelemetry::get().get_delta_best(); 
-        
-        if (!config.delta_use_all_time_best) 
+
+        if (config.delta_use_all_time_best)
         {
-            delta_val = 0.0f; 
+            const auto& trace = LapHistory::get().best_lap_trace();
+            float dist = LMUTelemetry::get().get_lap_dist();
+            float cur_time = (float)(LMUTelemetry::get().get_elapsed_time() - LMUTelemetry::get().get_lap_start_et());
+
+            static long  s_last_lap_number = -1;
+            static float s_smoothed_delta = 0.0f;
+            long cur_lap_number = LMUTelemetry::get().get_lap_number();
+
+            bool just_crossed_line = (s_last_lap_number >= 0 && cur_lap_number != s_last_lap_number);
+            s_last_lap_number = cur_lap_number;
+
+            if (just_crossed_line)
+            {
+                // mLapDist hasn't caught up to the new lap yet; don't trust any lookup this frame,
+                // just reset the running delta to 0 and let it rebuild cleanly from the new lap's start
+                s_smoothed_delta = 0.0f;
+            }
+            else if (trace.size() >= 2 && dist >= 0.0f && cur_time < 5.0f ? dist < 50.0f : true)
+            // ^ belt-and-braces: only trust dist if we're either well into the lap, or dist itself
+            //   looks like genuine early-lap distance (not a stale end-of-lap carryover)
+            {
+                auto it = std::upper_bound(trace.begin(), trace.end(), dist,
+                    [](float d, const TraceSample& s) { return d < s.dist; });
+
+                if (it != trace.begin() && it != trace.end())
+                {
+                    const auto& b = *it;
+                    const auto& a = *(it - 1);
+                    float f = (dist - a.dist) / (std::max)(b.dist - a.dist, 0.001f);
+                    float ref_time = a.time + f * (b.time - a.time);
+                    float raw_delta = cur_time - ref_time;
+
+                    float smoothing = std::clamp(config.delta_smoothing, 0.01f, 1.0f);
+                    s_smoothed_delta += (raw_delta - s_smoothed_delta) * smoothing;
+                }
+            }
+
+            delta_val = s_smoothed_delta;
+        }
+        else
+        {
+            delta_val = LMUTelemetry::get().get_delta_best(); // session-scoped, game-native
         }
 #endif
 
@@ -483,7 +526,7 @@ namespace widgets
             // draw Split Bar Background
             ImVec2 bg_min = p;
             ImVec2 bg_max = ImVec2(p.x + bar_width, p.y + bar_height);
-            draw_list->AddRectFilled(bg_min, bg_max, ImGui::GetColorU32(ImVec4(0.15f, 0.15f, 0.18f, 1.0f)), 0.0f);
+            draw_list->AddRectFilled(bg_min, bg_max, ImGui::GetColorU32(ImVec4(0.117f, 0.117f, 0.137f, 1.0f)), 0.0f);  //IM_COL32(30, 30, 35, 255)
 
             // center dividing tick mark
             draw_list->AddLine(ImVec2(center_x, p.y), ImVec2(center_x, p.y + bar_height), IM_COL32(200, 200, 200, 200), 1.5f);
@@ -562,9 +605,12 @@ namespace widgets
 
             if (ImGui::RadioButton("All-Time / Best Lap", config.delta_use_all_time_best)) 
                 config.delta_use_all_time_best = true;
-            
-            if (ImGui::RadioButton("Last Lap", !config.delta_use_all_time_best)) 
+
+            if (ImGui::RadioButton("Session Best", !config.delta_use_all_time_best)) 
                 config.delta_use_all_time_best = false;
+            
+            //if (ImGui::RadioButton("Last Lap", !config.delta_use_all_time_best)) 
+                //config.delta_use_all_time_best = false;
 
             ImGui::Separator();
             ImGui::Spacing();
@@ -583,11 +629,19 @@ namespace widgets
                 config.delta_negative_color[0] = 0.02f;  config.delta_negative_color[1] = 0.9f; config.delta_negative_color[2] = 0.0f; config.delta_negative_color[3] = 1.0f;
                 config.delta_positive_color[0] = 0.898f;  config.delta_positive_color[1] = 0.133f; config.delta_positive_color[2] = 0.286f;   config.delta_positive_color[3] = 1.0f;
             }
+
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::Text("!!! TEST ONLY !!!");
+            ImGui::Text("Smoothing (All-Time Best mode)");
+            ImGui::SliderFloat("Smoothing", &config.delta_smoothing, 0.01f, 1.0f, "%.2f");
+            ImGui::TextWrapped("Lower = smoother but laggier. Higher = snappier but noisier.");
         }
         ImGui::End();
     }
 
     // wheel widget ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     inline std::string default_wheel_image_path()
     {
         return std::string(RESOURCES_PATH) + "steering_white.png";
@@ -737,6 +791,7 @@ namespace widgets
 #endif
 
     // lap history widget ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     inline std::string format_lap_time(float seconds) // format seconds into mm:ss.fff format
     {
         if (seconds <= 0.0f) return "--:--.---";
@@ -793,11 +848,25 @@ namespace widgets
                     const auto& lap = laps[i];
                     ImGui::TableNextRow();
 
-                    bool is_best = (reference_time > 0.0f && std::abs(lap.lap_time - reference_time) < 0.001f);
+                    /*bool is_best = (reference_time > 0.0f && std::abs(lap.lap_time - reference_time) < 0.001f);
 
                     ImVec4 row_col = is_best ? ImVec4(config.time_fucsia_color[0], config.time_fucsia_color[1], config.time_fucsia_color[2], config.time_fucsia_color[3]) 
                                              : ImVec4(config.lap_history_font_color[0], config.lap_history_font_color[1], config.lap_history_font_color[2], config.lap_history_font_color[3]);
                     
+                    ImGui::PushStyleColor(ImGuiCol_Text, row_col);*/
+                    bool is_all_time_best = (LapHistory::get().all_time_best_lap() > 0.0f) &&
+                         (std::abs(lap.lap_time - LapHistory::get().all_time_best_lap()) < 0.001f);
+                    float sess_best = LapHistory::get().session_best_lap(lap.session_number);
+                    bool is_session_best = (sess_best > 0.0f) && (std::abs(lap.lap_time - sess_best) < 0.001f);
+
+                    ImVec4 row_col;
+                    if (is_all_time_best)
+                        row_col = ImVec4(config.time_fucsia_color[0], config.time_fucsia_color[1], config.time_fucsia_color[2], config.time_fucsia_color[3]);
+                    else if (is_session_best)
+                        row_col = ImVec4(config.time_green_color[0], config.time_green_color[1], config.time_green_color[2], config.time_green_color[3]);
+                    else
+                        row_col = ImVec4(config.lap_history_font_color[0], config.lap_history_font_color[1], config.lap_history_font_color[2], config.lap_history_font_color[3]);
+
                     ImGui::PushStyleColor(ImGuiCol_Text, row_col);
 
                     ImGui::TableSetColumnIndex(0);
@@ -812,24 +881,16 @@ namespace widgets
                     {
                         ImGui::Text("--");
                     }
-                    else if (is_best)
-                    {
-                        ImGui::Text("0.000"); 
-                    }
                     else if (reference_time > 0.0f)
                     {
                         float delta = lap.lap_time - reference_time;
                         char delta_buf[32];
+                        snprintf(delta_buf, sizeof(delta_buf), "%s%.3f", (delta > 0.0f ? "+" : (delta < 0.0f ? "-" : "")), std::abs(delta));
+                        if (delta == 0.0f) snprintf(delta_buf, sizeof(delta_buf), "0.000");
 
-                        ImVec4 delta_col;
-                        if (delta <= 0.0f)
-                            delta_col = ImVec4(config.time_green_color[0], config.time_green_color[1], config.time_green_color[2], config.time_green_color[3]);
-                        else if (delta < 1.0f)
-                            delta_col = ImVec4(config.time_yellow_color[0], config.time_yellow_color[1], config.time_yellow_color[2], config.time_yellow_color[3]);
-                        else
-                            delta_col = ImVec4(config.time_red_color[0], config.time_red_color[1], config.time_red_color[2], config.time_red_color[3]);
-
-                        snprintf(delta_buf, sizeof(delta_buf), "%s%.3f", (delta > 0.0f ? "+" : "-"), std::abs(delta));
+                        ImVec4 delta_col = is_all_time_best ? ImVec4(config.time_fucsia_color[0], config.time_fucsia_color[1], config.time_fucsia_color[2], config.time_fucsia_color[3])
+                                        : is_session_best ? ImVec4(config.time_green_color[0], config.time_green_color[1], config.time_green_color[2], config.time_green_color[3])
+                                                            : ImVec4(config.time_yellow_color[0], config.time_yellow_color[1], config.time_yellow_color[2], config.time_yellow_color[3]);
 
                         ImGui::PushStyleColor(ImGuiCol_Text, delta_col);
                         ImGui::Text("%s", delta_buf);
@@ -839,6 +900,10 @@ namespace widgets
                     {
                         ImGui::Text("--");
                     }
+                    /*else if (is_best)
+                    {
+                        ImGui::Text("0.000"); 
+                    }*/
                     
                     ImGui::PopStyleColor(); 
                 }
@@ -890,6 +955,193 @@ namespace widgets
         ImGui::End();
     }
 
+    // sectors widget ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    inline void sectors_widget(config::AppConfig& config)
+    {
+        bool  complete[3];
+        float sector_time[3];
+        float all_time_best[3];
+        float session_best[3];
+
+#ifdef IS_CONTROL_PANEL
+        complete[0] = true;  sector_time[0] = 34.821f;
+        complete[1] = true;  sector_time[1] = 54.988f;//55.230f;
+        //complete[2] = true; sector_time[2] = 35.980f; 
+         complete[2] = false; sector_time[2] = 0.0f;
+        all_time_best[0] = 34.512f; all_time_best[1] = 54.980f; all_time_best[2] = 36.104f;
+        session_best[0]  = 34.700f; session_best[1]  = 55.100f; session_best[2]  = 36.104f;
+        float current_lap_running = 47.3f;
+        float last_lap_time = 127.455f;
+#else
+        SectorTracker::get().update();
+        int sess = LapHistory::get().current_session_number();
+        for (int i = 0; i < 3; ++i)
+        {
+            complete[i]       = SectorTracker::get().is_complete(i);
+            sector_time[i]    = SectorTracker::get().get_time(i);
+            all_time_best[i]  = LapHistory::get().all_time_best_sector(i);
+            session_best[i]   = LapHistory::get().session_best_sector(sess, i);
+        }
+
+        float current_lap_running = (float)(LMUTelemetry::get().get_elapsed_time() - LMUTelemetry::get().get_lap_start_et());
+        if (current_lap_running < 0.0f) current_lap_running = 0.0f;
+
+        std::vector<LapRecord> last_laps = LapHistory::get().recent_laps(1);
+        float last_lap_time = last_laps.empty() ? -1.0f : last_laps[0].lap_time;
+#endif
+
+        float potential = (complete[0] ? sector_time[0] : all_time_best[0])
+             + (complete[1] ? sector_time[1] : all_time_best[1])
+             + (complete[2] ? sector_time[2] : all_time_best[2]);
+        bool potential_valid = all_time_best[0] > 0.0f && all_time_best[1] > 0.0f && all_time_best[2] > 0.0f;
+
+        float optimal = all_time_best[0] + all_time_best[1] + all_time_best[2];
+        bool optimal_valid = potential_valid;
+
+        const float k_min_quad_height = 4.0f;
+
+        ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+        ImGui::SetNextWindowBgAlpha(config.opacity);
+        ImGui::SetNextWindowSize(ImVec2(240, 88), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(150, 60 + k_min_quad_height), ImVec2(600, 100));
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.0f, 6.0f));
+        if (ImGui::Begin("Sectors HUD", nullptr, window_flags))
+        {
+            ImVec2 avail_full = ImGui::GetContentRegionAvail();
+
+            // --- Current / Potential / Optimal / Last ---
+            {
+                struct Row { const char* label; std::string value; bool highlight; };
+                std::vector<Row> rows;
+
+                if (config.sector_show_current)
+                {
+                    char buf[32]; snprintf(buf, sizeof(buf), "%.3f", current_lap_running);
+                    rows.push_back({ "Current:", buf, false });
+                }
+                if (config.sector_show_potential)
+                    rows.push_back({ "Potential:", potential_valid ? format_lap_time(potential) : "--:--.---", potential_valid });
+                if (config.sector_show_optimal)
+                    rows.push_back({ "Optimal:", optimal_valid ? format_lap_time(optimal) : "--:--.---", false });
+                if (config.sector_show_last)
+                    rows.push_back({ "Last:", last_lap_time > 0.0f ? format_lap_time(last_lap_time) : "--:--.---", false });
+
+                for (const auto& row : rows)
+                {
+                    ImVec2 val_size = ImGui::CalcTextSize(row.value.c_str());
+                    ImGui::TextUnformatted(row.label);
+                    ImGui::SameLine(ImGui::GetContentRegionAvail().x + ImGui::GetCursorPosX() - val_size.x);
+                    if (row.highlight)
+                    {
+                        ImVec4 col(config.time_red_color[0], config.time_red_color[1], config.time_red_color[2], config.time_red_color[3]);
+                        ImGui::PushStyleColor(ImGuiCol_Text, col);
+                        ImGui::TextUnformatted(row.value.c_str());
+                        ImGui::PopStyleColor();
+                    }
+                    else
+                    {
+                        ImGui::TextUnformatted(row.value.c_str());
+                    }
+                }
+
+                if (!rows.empty()) ImGui::Spacing();
+            }
+            ImGui::Spacing();
+
+            // --- SECTOR QUADS ---
+            ImVec2 avail = ImGui::GetContentRegionAvail();
+            float gap = 6.0f;
+            float block_w = (avail.x - gap * 2) / 3.0f;
+            float block_h = (std::max)(avail.y, k_min_quad_height);
+            ImVec2 p = ImGui::GetCursorScreenPos();
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+
+            float old_font_scale = ImGui::GetFont()->Scale;
+            ImGui::GetFont()->Scale = std::clamp(config.sector_font_scale, 0.5f, 3.0f);
+            ImGui::PushFont(ImGui::GetFont());
+
+            for (int i = 0; i < 3; ++i)
+            {
+                ImVec2 bmin(p.x + i * (block_w + gap), p.y);
+                ImVec2 bmax(bmin.x + block_w, bmin.y + block_h);
+
+                if (!complete[i])
+                {
+                    dl->AddRect(bmin, bmax, ImGui::GetColorU32(ImVec4(0.4f, 0.4f, 0.45f, 0.8f)), 0.0f, 0, 1.5f);
+                    char label[4];
+                    snprintf(label, sizeof(label), "S%d", i + 1);
+                    ImVec2 ts = ImGui::CalcTextSize(label);
+                    ImVec2 tp((bmin.x + bmax.x - ts.x) * 0.5f, (bmin.y + bmax.y - ts.y) * 0.5f);
+                    draw_text_maybe_bold(dl, tp,  ImGui::GetColorU32(ImVec4(0.5f, 0.5f, 0.55f, 0.8f)), label , config.sector_font_bold);
+                    continue;
+                }
+
+                bool is_all_time_best = (all_time_best[i] > 0.0f) && (sector_time[i] <= all_time_best[i]);
+                bool is_session_best  = (session_best[i]  > 0.0f) && (sector_time[i] <= session_best[i]);
+
+                ImVec4 bg;
+                if (is_all_time_best)
+                    bg = ImVec4(config.time_fucsia_color[0], config.time_fucsia_color[1], config.time_fucsia_color[2], config.time_fucsia_color[3]);
+                else if (is_session_best)
+                    bg = ImVec4(config.time_green_color[0], config.time_green_color[1], config.time_green_color[2], config.time_green_color[3]);
+                else
+                    bg = ImVec4(config.time_yellow_color[0], config.time_yellow_color[1], config.time_yellow_color[2], config.time_yellow_color[3]);
+
+                dl->AddRectFilled(bmin, bmax, ImGui::ColorConvertFloat4ToU32(bg), 0.0f);
+
+                char buf[32];
+                float reference = config.sector_time_mode ? -1.0f : all_time_best[i];
+                if (config.sector_time_mode || reference <= 0.0f)
+                    snprintf(buf, sizeof(buf), "%.3f", sector_time[i]);
+                else
+                {
+                    float delta = sector_time[i] - reference;
+                    snprintf(buf, sizeof(buf), "%s%.3f", (delta > 0.0f ? "+" : "-"), std::abs(delta));
+                }
+
+                ImVec2 ts = ImGui::CalcTextSize(buf);
+                ImVec2 tp((bmin.x + bmax.x - ts.x) * 0.5f, (bmin.y + bmax.y - ts.y) * 0.5f);
+                draw_text_maybe_bold(dl, tp, IM_COL32(0, 0, 0, 255), buf, config.sector_font_bold);
+            }
+            ImGui::PopFont();
+            ImGui::GetFont()->Scale = old_font_scale;
+
+            //ImGui::Dummy(avail);
+            ImGui::Dummy(ImVec2(avail.x, block_h));
+        }
+        ImGui::End();
+        ImGui::PopStyleVar();
+    }
+
+    inline void sectors_settings_panel(bool* p_open, config::AppConfig& config)
+    {
+        if (ImGui::Begin("Sectors Settings", p_open, 0))
+        {
+            ImGui::SetWindowSize(ImVec2(260, 160), ImGuiCond_FirstUseEver);
+            ImGui::Text("Display Mode");
+            ImGui::Separator();
+            ImGui::Spacing();
+            if (ImGui::RadioButton("Delta vs All-Time Best", !config.sector_time_mode)) config.sector_time_mode = false;
+            if (ImGui::RadioButton("Absolute Sector Time", config.sector_time_mode)) config.sector_time_mode = true;
+
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::Text("Text");
+            ImGui::SliderFloat("Font Scale", &config.sector_font_scale, 0.5f, 2.5f, "%.1fx");
+            ImGui::Checkbox("Bold Font", &config.sector_font_bold);
+
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::Text("Readout Fields");
+            ImGui::Checkbox("Current Lap", &config.sector_show_current);
+            ImGui::Checkbox("Potential Best", &config.sector_show_potential);
+            ImGui::Checkbox("Optimal (so far)", &config.sector_show_optimal);
+            ImGui::Checkbox("Last Lap", &config.sector_show_last);
+        }
+        ImGui::End();
+    }
 };
 
 #endif
